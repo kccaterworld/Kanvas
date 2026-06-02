@@ -1,0 +1,14 @@
+import java.util.*;
+import com.kanvas.graphics.*;
+
+ArrayList<Point> particles = new ArrayList<>();
+
+void setup() {
+    size(800, 600);
+    background(30);
+    println("Sketch initialized!");
+}
+
+void draw() {
+    background(30);
+}

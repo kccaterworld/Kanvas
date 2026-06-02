@@ -1,0 +1,20 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "author": "{{AUTHOR}}",
+  "description": "A Java library managed by Kanvas",
+  "mainClass": null,
+  "modules": {
+    "srcDirs": ["src"],
+    "outputDir": "build/classes"
+  },
+  "dependencies": [],
+  "compiler": {
+    "target": "11",
+    "encoding": "UTF-8"
+  },
+  "packaging": {
+    "jarName": "{{PROJECT_NAME}}.jar",
+    "nativeTargets": []
+  }
+}
