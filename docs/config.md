@@ -16,6 +16,7 @@ file are relative to that project directory unless noted otherwise.
     "srcDirs": ["src"],
     "outputDir": "build/classes"
   },
+  "classpath": ["lib/local-helper.jar"],
   "dependencies": [
     "guava-31.1-jre.jar"
   ],
@@ -25,6 +26,8 @@ file are relative to that project directory unless noted otherwise.
   },
   "packaging": {
     "jarName": "particle-sketch.jar",
+    "version": "2.1.0",
+    "icon": "assets/icon.png",
     "nativeTargets": ["windows", "macos", "linux"]
   }
 }
@@ -32,24 +35,35 @@ file are relative to that project directory unless noted otherwise.
 
 ## Fields
 
-The current loader provides defaults for every field, so no field is strictly
-required to parse a config file. A runnable application should define
-`mainClass`.
+The loader validates the core fields needed to create an effective config.
+A runnable application should also define `mainClass`.
 
 | Field | Required | Default | Description |
 | --- | --- | --- | --- |
-| `name` | No | Project directory name | Project name. |
-| `version` | No | `0.1.0` | Project version. |
+| `name` | Yes | None | Project name. |
+| `version` | Yes | None | Project version. |
 | `author` | No | Empty string | Project author or organization. |
 | `description` | No | Empty string | Short description of the project. |
 | `mainClass` | For runnable apps | None | Fully qualified Java entry class, such as `com.example.App`. |
-| `modules.srcDirs` | No | `["src"]` | Directories containing project source files. |
-| `modules.outputDir` | No | `build/classes` | Directory for compiled classes. |
+| `modules.srcDirs` | Yes | None | Directories containing project source files. |
+| `modules.outputDir` | Yes | None | Directory for compiled classes. |
+| `classpath` | No | `[]` | Extra classpath entries, resolved relative to the project root. |
 | `dependencies` | No | `[]` | Dependency filenames. The current loader resolves each entry inside the project's `lib/` directory. |
-| `compiler.target` | No | `11` | Java compiler target version. |
-| `compiler.encoding` | No | `UTF-8` | Source file encoding. |
-| `packaging.jarName` | No | `<name>.jar` | Filename used when packaging the project. |
+| `compiler.target` | Yes | None | Java compiler target version. |
+| `compiler.encoding` | Yes | None | Source file encoding. |
+| `packaging.jarName` | Yes | None | Filename used when packaging the project. |
+| `packaging.version` | No | Project `version` | Version used for packaged output. |
+| `packaging.icon` | No | None | Icon path used by packaging tools. |
 | `packaging.nativeTargets` | No | `[]` | Requested native package targets, such as `windows`, `macos`, or `linux`. |
+
+## CLI Overrides
+
+Commands that load config can apply one-off overrides. CLI values win over
+`kanvas.json`, and `kanvas.json` wins over built-in defaults.
+
+```powershell
+kanvas config . --target 17 --jar-name demo.jar --native-targets windows,linux
+```
 
 ## Main Class
 
