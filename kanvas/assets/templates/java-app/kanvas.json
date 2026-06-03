@@ -8,6 +8,7 @@
     "srcDirs": ["src"],
     "outputDir": "build/classes"
   },
+  "classpath": [],
   "dependencies": [],
   "compiler": {
     "target": "11",
@@ -15,6 +16,8 @@
   },
   "packaging": {
     "jarName": "{{PROJECT_NAME}}.jar",
+    "version": "0.1.0",
+    "icon": null,
     "nativeTargets": ["windows", "macos", "linux"]
   }
 }
