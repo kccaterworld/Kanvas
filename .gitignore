@@ -1,6 +1,7 @@
 .vscode/*
 .mtj.tmp/
 out/
+build/
 
 *.class
 *.log
