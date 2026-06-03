@@ -1,4 +1,4 @@
-package kanvas.processor;
+package kanvas.config;
 
 public class ConfigException extends RuntimeException {
     public ConfigException(String message) {

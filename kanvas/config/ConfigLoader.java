@@ -1,4 +1,4 @@
-package kanvas.processor;
+package kanvas.config;
 
 import java.io.*;
 import java.util.*;
@@ -9,6 +9,10 @@ import java.nio.charset.StandardCharsets;
 
 public class ConfigLoader {
     public static Config loadConfig(String projectPath) {
+        return loadConfig(projectPath, Collections.emptyMap());
+    }
+
+    public static Config loadConfig(String projectPath, Map<String, String> overrides) {
         String content;
         Path base = Paths.get(projectPath);
         Path configPath = base.resolve("kanvas.json");
@@ -24,38 +28,103 @@ public class ConfigLoader {
 
         Map<String, Object> json = (Map<String, Object>) parsed;
 
-        String name = getString(json, "name", base.getFileName().toString());
-        String version = getString(json, "version", "0.1.0");
-        String author = getString(json, "author", "");
-        String description = getString(json, "description", "");
-        String target = getNestedString(json, "compiler", "target", "11");
-        String encoding = getNestedString(json, "compiler", "encoding", "UTF-8");
-        String jarName = getNestedString(json, "packaging", "jarName", name + ".jar");
-        String mainClass = getString(json, "mainClass", null);
+        String name = override(overrides, "name", getString(json, "name", null));
+        String version = override(overrides, "version", getString(json, "version", null));
+        String author = override(overrides, "author", getString(json, "author", ""));
+        String description = override(overrides, "description", getString(json, "description", ""));
+        String target = override(overrides, "target", getNestedString(json, "compiler", "target", null));
+        String encoding = override(overrides, "encoding", getNestedString(json, "compiler", "encoding", null));
+        String jarName = override(overrides, "jarName", getNestedString(json, "packaging", "jarName", null));
+        String packageVersion = override(overrides, "packageVersion", getNestedString(json, "packaging", "version", version));
+        String iconPath = override(overrides, "icon", getNestedString(json, "packaging", "icon", null));
+        String mainClass = override(overrides, "mainClass", getString(json, "mainClass", null));
+        validateRequired("name", name);
+        validateRequired("version", version);
+        validateRequired("compiler.target", target);
+        validateRequired("compiler.encoding", encoding);
+        validateRequired("packaging.jarName", jarName);
         Path mainFile = null;
-        if (mainClass != null) mainFile = base.resolve("src").resolve(mainClass.replace('.', '/') + ".java");
-        String outputDir = getNestedString(json, "modules", "outputDir", "build/classes");
+        if (mainClass != null && !mainClass.isBlank()) mainFile = base.resolve("src").resolve(mainClass.replace('.', '/') + ".java");
+        String outputDir = override(overrides, "outputDir", getNestedString(json, "modules", "outputDir", null));
+        validateRequired("modules.outputDir", outputDir);
         List<File> srcDirs = new ArrayList<>();
-        Object srcsObj = getNested(json, "modules", "srcDirs");
-        if (srcsObj instanceof List)
-            for (Object obj : (List<Object>) srcsObj)
-                if (obj != null) srcDirs.add(new File(base.resolve(obj.toString()).toString()));
-        else srcDirs.add(new File(base.resolve("src").toString()));
+        List<String> srcOverrides = overrideList(overrides, "srcDirs");
+        if (srcOverrides != null) {
+            for (String src : srcOverrides)
+                if (src != null && !src.isBlank()) srcDirs.add(new File(base.resolve(src).toString()));
+        }
+        else {
+            Object srcsObj = getNested(json, "modules", "srcDirs");
+            if (srcsObj instanceof List) {
+                for (Object srcObj : (List<Object>) srcsObj)
+                    if (srcObj != null) srcDirs.add(new File(base.resolve(srcObj.toString()).toString()));
+            }
+        }
+        if (srcDirs.isEmpty()) throw new ConfigException("modules.srcDirs must contain at least one directory");
+        List<File> classpath = new ArrayList<>();
+        List<String> classpathOverrides = overrideList(overrides, "classpath");
+        Object classpathObj = json.get("classpath");
+        if (classpathOverrides != null) {
+            for (String classpathEntry : classpathOverrides)
+                if (classpathEntry != null && !classpathEntry.isBlank()) classpath.add(new File(base.resolve(classpathEntry).toString()));
+        }
+        else if (classpathObj instanceof List) {
+            for (Object classpathObject : (List<Object>) classpathObj)
+                if (classpathObject != null) classpath.add(new File(base.resolve(classpathObject.toString()).toString()));
+        }
         List<File> deps = new ArrayList<>();
-        Object depsObj = json.get("dependencies");
-        if (depsObj instanceof List)
-            for (Object obj : (List<Object>) depsObj)
-                if (obj != null) deps.add(new File(base.resolve("lib").resolve(obj.toString()).toString()));
+        List<String> depOverrides = overrideList(overrides, "dependencies");
+        if (depOverrides != null) {
+            for (String dep : depOverrides)
+                if (dep != null && !dep.isBlank()) deps.add(new File(base.resolve("lib").resolve(dep).toString()));
+        }
+        else {
+            Object depsObj = json.get("dependencies");
+            if (depsObj instanceof List) {
+                for (Object depObject : (List<Object>) depsObj)
+                    if (depObject != null) deps.add(new File(base.resolve("lib").resolve(depObject.toString()).toString()));
+            }
+        }
         List<String> nativeTargets = new ArrayList<>();
-        Object natTargsObj = getNested(json, "packaging", "nativeTargets");
-        if (natTargsObj instanceof List)
-            for (Object o : (List<Object>) natTargsObj)
-                if (o != null) nativeTargets.add(o.toString());
+        List<String> nativeTargetOverrides = overrideList(overrides, "nativeTargets");
+        if (nativeTargetOverrides != null) nativeTargets.addAll(nativeTargetOverrides);
+        else {
+            Object natTargsObj = getNested(json, "packaging", "nativeTargets");
+            if (natTargsObj instanceof List) {
+                for (Object nativeTarget : (List<Object>) natTargsObj)
+                    if (nativeTarget != null) nativeTargets.add(nativeTarget.toString());
+            }
+        }
 
-        return new Config(name, jarName, version, author, description, mainClass, target, encoding,
+        return new Config(name, jarName, version, author, description,
+                blankToNull(mainClass), target, encoding, packageVersion,
+                iconPath == null || iconPath.isBlank() ? null : new File(base.resolve(iconPath).toString()),
                 mainFile == null ? null : mainFile.toFile(),
                 new File(base.resolve(outputDir).toString()),
-                srcDirs, deps, nativeTargets);
+                srcDirs, classpath, deps, nativeTargets);
+    }
+
+    private static String override(Map<String, String> overrides, String key, String fallback) {
+        if (overrides == null || !overrides.containsKey(key)) return fallback;
+        return overrides.get(key);
+    }
+
+    private static List<String> overrideList(Map<String, String> overrides, String key) {
+        if (overrides == null || !overrides.containsKey(key)) return null;
+        String value = overrides.get(key);
+        if (value == null || value.isBlank()) return new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        for (String part : value.split(","))
+            if (!part.trim().isEmpty()) values.add(part.trim());
+        return values;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static void validateRequired(String field, String value) {
+        if (value == null || value.isBlank()) throw new ConfigException(field + " is required in kanvas.json");
     }
 
     private static String getString(Map<String, Object> json, String key, String def) {

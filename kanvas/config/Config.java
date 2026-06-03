@@ -1,4 +1,4 @@
-package kanvas.processor;
+package kanvas.config;
 
 import java.util.*;
 import java.io.*;
@@ -11,29 +11,35 @@ public class Config {
     private final String encoding;
     private final String projectName;
     private final String jarName;
+    private final String packageVersion;
     private final String mainClass;
+    private final File icon;
     private final File mainFile;
     private final File output;
     private final List<File> sourceDirectories;
+    private final List<File> classpath;
     private final List<File> dependencies;
     private final List<String> nativeTargets;
 
     public Config(String projectName, String jarName, String version,
         String author, String description, String mainClass, String target, String encoding,
-        File mainFile, File output, List<File> sourceDirectories, List<File> dependencies,
-        List<String> nativeTargets) {
+        String packageVersion, File icon, File mainFile, File output, List<File> sourceDirectories,
+        List<File> classpath, List<File> dependencies, List<String> nativeTargets) {
         this.projectName = projectName;
         this.jarName = jarName;
+        this.packageVersion = packageVersion;
         this.version = version;
         this.author = author;
         this.description = description;
         this.mainClass = mainClass;
         this.target = target;
         this.encoding = encoding;
+        this.icon = icon;
         this.nativeTargets = nativeTargets;
         this.mainFile = mainFile;
         this.output = output;
         this.sourceDirectories = sourceDirectories;
+        this.classpath = classpath;
         this.dependencies = dependencies;
     }
 
@@ -45,9 +51,12 @@ public class Config {
     public String getEncoding() { return encoding; }
     public String getProjectName() { return projectName; }
     public String getJarName() { return jarName; }
+    public String getPackageVersion() { return packageVersion; }
+    public File getIcon() { return icon; }
     public File getMainFile() { return mainFile; }
     public File getOutput() { return output; }
     public List<File> getSourceDirectories() { return sourceDirectories; }
+    public List<File> getClasspath() { return classpath; }
     public List<File> getDependencies() { return dependencies; }
     public List<String> getNativeTargets() { return nativeTargets; }
 
@@ -69,6 +78,13 @@ public class Config {
         json.append("],\n");
         json.append("    \"outputDir\": ").append(jsonString(output == null ? null : output.getPath())).append("\n");
         json.append("  },\n");
+        json.append("  \"classpath\": [");
+        for (int i = 0; classpath != null && i < classpath.size(); i++) {
+            if (i > 0) json.append(", ");
+            File file = classpath.get(i);
+            json.append(jsonString(file == null ? null : file.getPath()));
+        }
+        json.append("],\n");
         json.append("  \"dependencies\": [");
         for (int i = 0; dependencies != null && i < dependencies.size(); i++) {
             if (i > 0) json.append(", ");
@@ -82,6 +98,8 @@ public class Config {
         json.append("  },\n");
         json.append("  \"packaging\": {\n");
         json.append("    \"jarName\": ").append(jsonString(jarName)).append(",\n");
+        json.append("    \"version\": ").append(jsonString(packageVersion)).append(",\n");
+        json.append("    \"icon\": ").append(jsonString(icon == null ? null : icon.getPath())).append(",\n");
         json.append("    \"nativeTargets\": [");
         for (int i = 0; nativeTargets != null && i < nativeTargets.size(); i++) {
             if (i > 0) json.append(", ");

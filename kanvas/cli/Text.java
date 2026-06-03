@@ -1,4 +1,4 @@
-package kanvas.processor;
+package kanvas.cli;
 
 import java.util.*;
 import java.util.stream.Collectors;

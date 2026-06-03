@@ -1,8 +1,9 @@
-package kanvas.processor;
+package kanvas.cli;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -49,7 +50,8 @@ public final class StartupScreen {
         StringBuilder screen = new StringBuilder();
         List<String> logoLines;
         try (InputStream stream = StartupScreen.class.getResourceAsStream("/kanvas/assets/text/logo.txt")) {
-            logoLines = (stream == null) ? Arrays.asList("Failed to load logo.") : new String(stream.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+            if (stream != null) logoLines = new String(stream.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+            else logoLines = Files.readAllLines(Paths.get("kanvas", "assets", "text", "logo.txt"), StandardCharsets.UTF_8);
         } catch (IOException e) { logoLines = Arrays.asList("Failed to load logo."); }
         for (String line : logoLines) screen.append(Text.style(line, theme.borderColor, theme.accentColor)).append("\n");
         screen.append(Text.style("Welcome to Kanvas CLI", theme.titleColor, "bold")).append("\n");

@@ -1,17 +1,26 @@
-package kanvas.processor;
+package kanvas.project;
 
 import java.util.*;
 import java.io.*;
 import java.nio.file.*;
+import kanvas.cli.Text;
 
 
 public class ProjectCreator {
+    private static final List<String> TEMPLATE_ORDER = Arrays.asList(
+        "kanvas-sketch", "java-app", "java-lib", "mixed-project", "empty"
+    );
     private static final Map<String, List<String>> TEMPLATE_FILES = Map.of(
+        "empty", Arrays.asList("kanvas.json"),
         "kanvas-sketch", Arrays.asList("kanvas.json", "src/main.kvs"),
         "java-app", Arrays.asList("kanvas.json", "src/App.java"),
         "java-lib", Arrays.asList("kanvas.json", "src/Library.java"),
         "mixed-project", Arrays.asList("kanvas.json", "src/App.java", "src/main.kvs")
     );
+
+    public static List<String> getTemplateTypes() {
+        return TEMPLATE_ORDER;
+    }
 
     public static void createProject(String projectName, String templateType, String outputPath) {
         if (projectName == null || projectName.isBlank()) throw new IllegalArgumentException("Please provide a project name");
@@ -53,12 +62,7 @@ public class ProjectCreator {
                 System.out.println(Text.style("Project copied successfully!", "green"));
             } catch (IOException e) { throw new RuntimeException("Failed to create project from template: " + e.getMessage(), e); }
         } else copyBundledTemplate(templateType, projectDir);
-        try {
-            Files.createDirectories(projectDir.resolve("src"));
-            Files.createDirectories(projectDir.resolve("lib"));
-            Files.createDirectories(projectDir.resolve("assets"));
-            Files.createDirectories(projectDir.resolve("build"));
-        } catch (IOException e) { throw new RuntimeException("Failed to create project structure: " + e.getMessage(), e); }
+        ensureProjectDirectories(projectDir);
         Path configPath = projectDir.resolve("kanvas.json");
         try {
             String configContent = Files.readString(configPath)
@@ -68,6 +72,15 @@ public class ProjectCreator {
             Files.writeString(configPath, configContent);
         } catch (IOException e) { throw new RuntimeException("Failed to update kanvas.json: " + e.getMessage(), e); }
         System.out.println(Text.style("Project created at: " + projectDir.toAbsolutePath(), "green"));
+    }
+
+    private static void ensureProjectDirectories(Path projectDir) {
+        try {
+            Files.createDirectories(projectDir.resolve("src"));
+            Files.createDirectories(projectDir.resolve("lib"));
+            Files.createDirectories(projectDir.resolve("assets"));
+            Files.createDirectories(projectDir.resolve("build"));
+        } catch (IOException e) { throw new RuntimeException("Failed to create project structure: " + e.getMessage(), e); }
     }
 
     private static void copyBundledTemplate(String templateType, Path projectDir) {
