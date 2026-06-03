@@ -2,7 +2,7 @@ package kanvas.runtime;
 
 import kanvas.libs.math.KVector;
 
-public abstract class KanvasSketch  extends KanvasStdlib {
+public abstract class KanvasScript  extends KanvasStdlib {
     private int bgColor = color(255);
     private int fillColor = color(0);
     private int strokeColor = color(0);
