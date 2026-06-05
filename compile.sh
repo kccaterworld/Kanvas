@@ -24,7 +24,7 @@ if [[ ${#JAVA_SOURCES[@]} -eq 0 ]]; then
   exit 1
 fi
 
-javac -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
+javac --release 21 -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
 
 jar --create \
   --file "$JAR_FILE" \

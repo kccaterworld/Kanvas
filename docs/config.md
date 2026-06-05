@@ -21,7 +21,7 @@ file are relative to that project directory unless noted otherwise.
     "guava-31.1-jre.jar"
   ],
   "compiler": {
-    "target": "11",
+    "target": "21",
     "encoding": "UTF-8"
   },
   "packaging": {

@@ -1,4 +1,4 @@
-javac -d build\classes (Get-ChildItem kanvas -Recurse -Filter *.java | Where-Object { $_.FullName -notmatch '\\assets\\templates\\' }).FullName
+javac --release 21 -d build\classes (Get-ChildItem kanvas -Recurse -Filter *.java | Where-Object { $_.FullName -notmatch '\\assets\\templates\\' }).FullName
 
 jar --create `
     --file build\kanvas.jar `

@@ -31,7 +31,7 @@ Kanvas is currently in early alpha and is built from source.
 
 ### Requirements
 
-- Java 11 or newer
+- Java 21 or newer
 - PowerShell or Bash
 - Git
 

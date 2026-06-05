@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class StartupScreen {
     private StartupScreen() {
@@ -50,7 +51,7 @@ public final class StartupScreen {
         StringBuilder screen = new StringBuilder();
         List<String> logoLines;
         try (InputStream stream = StartupScreen.class.getResourceAsStream("/kanvas/assets/text/logo.txt")) {
-            if (stream != null) logoLines = new String(stream.readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+            if (stream != null) logoLines = new String(stream.readAllBytes(), StandardCharsets.UTF_8).lines().collect(Collectors.toList());
             else logoLines = Files.readAllLines(Paths.get("kanvas", "assets", "text", "logo.txt"), StandardCharsets.UTF_8);
         } catch (IOException e) { logoLines = Arrays.asList("Failed to load logo."); }
         for (String line : logoLines) screen.append(Text.style(line, theme.borderColor, theme.accentColor)).append("\n");

@@ -6,6 +6,7 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class KanvasPreprocessor {
     public List<File> preprocessProject(Config config) {
@@ -43,7 +44,7 @@ public class KanvasPreprocessor {
                     .filter(Files::isRegularFile)
                     .filter(KanvasPreprocessor::isKanvasSource)
                     .sorted()
-                    .toList();
+                    .collect(Collectors.toList());
                 for (Path kvsFile : kvsFiles) {
                     Path relative = srcDir.relativize(kvsFile);
                     String className = generatedClassName(kvsFile);
@@ -85,12 +86,12 @@ public class KanvasPreprocessor {
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
             if (Character.isLetterOrDigit(c)) {
-                if (className.isEmpty() && Character.isDigit(c)) className.append('_');
+                if (className.length() == 0 && Character.isDigit(c)) className.append('_');
                 className.append(capitalizeNext ? Character.toUpperCase(c) : c);
                 capitalizeNext = false;
             } else capitalizeNext = true;
         }
-        if (className.isEmpty()) className.append("Kanvas");
+        if (className.length() == 0) className.append("Kanvas");
         className.append("_Generated");
         return className.toString();
     }
