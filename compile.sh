@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-mkdir -p build/classes
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
 
-javac -d build/classes $(find kanvas -type f -name "*.java" | grep -v "/assets/templates/")
+BUILD_DIR="build"
+CLASSES_DIR="$BUILD_DIR/classes"
+JAR_FILE="$BUILD_DIR/kanvas.jar"
+
+rm -rf "$CLASSES_DIR"
+mkdir -p "$CLASSES_DIR"
+
+mapfile -d '' JAVA_SOURCES < <(
+  find kanvas \
+    -type f \
+    -name '*.java' \
+    ! -path '*/assets/templates/*' \
+    -print0
+)
+
+if [[ ${#JAVA_SOURCES[@]} -eq 0 ]]; then
+  echo "No Java sources found." >&2
+  exit 1
+fi
+
+javac -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
 
 jar --create \
-  --file build/kanvas.jar \
+  --file "$JAR_FILE" \
   --main-class kanvas.cli.Main \
-  -C build/classes . \
-  -C . kanvas
+  -C "$CLASSES_DIR" . \
+  -C "$ROOT_DIR" kanvas
+
+echo "Built $JAR_FILE"
