@@ -6,8 +6,8 @@ Kanvas is currently still in early development, and many features may not be imp
 
 ## Status
 
-![Build](https://github.com/kccaterworld/Kanvas/actions/workflows/build.yml/badge.svg)
-![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkccaterworld%2FKanvas%2Fmain%2F.github%2Fbadges%2Fversion.yml&query=%24.version&label=version&color=blue)
+![Build](https://github.com/kccaterworld/Kanvas/actions/workflows/build.yml/badge.svg)&nbsp;&nbsp;
+![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkccaterworld%2FKanvas%2Fmain%2F.github%2Fbadges%2Fversion.yml&query=%24.version&label=version&color=blue)&nbsp;&nbsp;
 
 Kanvas is still in its early stages. The CLI, config format, templates, and preprocessing pipeline are being built out.
 
@@ -40,13 +40,13 @@ Kanvas is currently in early alpha and is built from source.
 Clone the repository:
 
 ```powershell
-git clone https://github.com/OWNER/Kanvas.git
+git clone https://github.com/kccaterworld/Kanvas.git
 cd Kanvas
 ./compile.ps1
 ```
 
 ```bash
-git clone https://github.com/OWNER/Kanvas.git
+git clone https://github.com/kccaterworld/Kanvas.git
 cd Kanvas
 ./compile.sh
 ```
