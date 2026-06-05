@@ -23,5 +23,5 @@ jobs:
           java-version: "11"
 
       - name: Build Kanvas
-        shell: pwsh
-        run: ./compile.ps1
+        shell: bash
+        run: ./compile.sh
