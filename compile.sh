@@ -1,4 +1,4 @@
-javac -d build\classes (Get-ChildItem kanvas -Recurse -Filter *.java | Where-Object { $_.FullName -notmatch '\\assets\\templates\\' }).FullName
+javac -d build\classes find kanvas -type f -name "*.java" | grep -v "/assets/templates/"
 
 jar --create `
     --file build\kanvas.jar `
