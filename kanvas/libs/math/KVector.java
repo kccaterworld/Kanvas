@@ -2,7 +2,7 @@ package kanvas.libs.math;
 
 import java.util.Arrays;
 
-public final class KVector {
+public class KVector {
     private final double[] values;
 
     public KVector(double... values) {
