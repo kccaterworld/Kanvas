@@ -14,6 +14,14 @@ public class KVector2 extends KVector {
         this.x = x;
         this.y = y;
     }
+    public void setMagnitude(double mag) {
+        if (magnitude() != 0) multiply(mag / magnitude());
+    }
+    public void setAngle(double angle) {
+        double mag = magnitude();
+        x = Math.cos(angle) * mag;
+        y = Math.sin(angle) * mag;
+    }
 
     public KVector2 copy() { return new KVector2(x, y); }
 
@@ -31,7 +39,11 @@ public class KVector2 extends KVector {
     public static KVector2 divide(KVector2 vector, double scalar) { return (scalar != 0) ? new KVector2(vector.x / scalar, vector.y / scalar) : new KVector2(0, 0); }
 
     public double dot(KVector2 other) { return this.x * other.x + this.y * other.y; }
+    public double cross(KVector2 other) { return this.x * other.y - this.y * other.x; }
     public double magnitude() { return Math.sqrt(x * x + y * y); }
+    public double angle() { return Math.atan2(y, x); }
+    public double angleBetween(KVector2 other) { return Math.atan2(cross(other), dot(other)); }
+    
 
     public KVector2 normalize() { double mag = magnitude();
         return (mag == 0) ? new KVector2(0, 0) : new KVector2(x / mag, y / mag); }
@@ -44,9 +56,13 @@ public class KVector2 extends KVector {
         return target;
     }
 
-    public static double dist(KVector2 a, KVector2 b) { return Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)); }
-    public double dist(KVector2 other) { return dist(this, other); }
     public double dist(double x, double y) { return dist(this, new KVector2(x, y)); }
+    public double dist(KVector2 other) { return dist(this, other); }
+    public static double dist(KVector2 a, KVector2 b) { return Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)); }
+
+    public KVector2 lerp(double x, double y, double t) { return lerp(this, new KVector2(x, y), t); }
+    public KVector2 lerp(KVector2 other, double t) { return lerp(this, other, t); }
+    public static KVector2 lerp(KVector2 a, KVector2 b, double t) { return new KVector2((a.x + t * (b.x - a.x)), (a.y + t * (b.y - a.y))); }
 
     @Override
     public String toString() {
