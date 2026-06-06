@@ -11,6 +11,14 @@ Kanvas is currently still in early development, and many features may not be imp
 
 Kanvas is still in its early stages. The CLI, config format, templates, and preprocessing pipeline are being built out.
 
+TODO before alpha release:
+
+- [ ] Finish `kanvas create`
+- [ ] `kanvas build/run`
+- [ ] Proper template projects and example sketches
+- [ ] Better error messages
+- [ ] Proper test suite and workflow
+
 ## Features
 
 - Create new sketch/app/library projects from templates
