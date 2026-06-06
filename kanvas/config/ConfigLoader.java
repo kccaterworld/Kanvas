@@ -1,5 +1,7 @@
 package kanvas.config;
 
+import kanvas.KanvasException;
+
 import java.io.*;
 import java.util.*;
 import java.nio.file.*;
@@ -8,11 +10,11 @@ import java.nio.charset.StandardCharsets;
 @SuppressWarnings("unchecked")
 
 public class ConfigLoader {
-    public static Config loadConfig(String projectPath) {
+    public static Config loadConfig(String projectPath) throws KanvasException {
         return loadConfig(projectPath, Collections.emptyMap());
     }
 
-    public static Config loadConfig(String projectPath, Map<String, String> overrides) {
+    public static Config loadConfig(String projectPath, Map<String, String> overrides) throws KanvasException {
         String content;
         Path base = Paths.get(projectPath);
         Path configPath = base.resolve("kanvas.json");
@@ -123,7 +125,7 @@ public class ConfigLoader {
         return value == null || value.isBlank() ? null : value;
     }
 
-    private static void validateRequired(String field, String value) {
+    private static void validateRequired(String field, String value) throws KanvasException {
         if (value == null || value.isBlank()) throw new ConfigException(field + " is required in kanvas.json");
     }
 
@@ -148,7 +150,7 @@ public class ConfigLoader {
     }
 
     static class JsonSimple {
-        public static Object parse(String s) {
+        public static Object parse(String s) throws KanvasException {
             return new Parser(stripBom(s).trim()).parseValue();
         }
 
@@ -169,7 +171,7 @@ public class ConfigLoader {
             char peek() { return i < s.length() ? s.charAt(i) : '\0'; }
             char next() { return i < s.length() ? s.charAt(i++) : '\0'; }
 
-            Object parseValue() {
+            Object parseValue() throws KanvasException {
                 skipWhitespace();
                 char c = peek();
                 if (c == '{') return parseObject();
@@ -180,7 +182,7 @@ public class ConfigLoader {
                 return parseNumber();
             }
 
-            Map<String, Object> parseObject() {
+            Map<String, Object> parseObject() throws KanvasException {
                 Map<String, Object> map = new LinkedHashMap<>();
                 expect('{');
                 skipWhitespace();
@@ -201,7 +203,7 @@ public class ConfigLoader {
                 return map;
             }
 
-            List<Object> parseArray() {
+            List<Object> parseArray() throws KanvasException {
                 List<Object> arr = new ArrayList<>();
                 expect('[');
                 skipWhitespace();
@@ -218,7 +220,7 @@ public class ConfigLoader {
                 return arr;
             }
 
-            String parseString() {
+            String parseString() throws KanvasException {
                 expect('"');
                 StringBuilder sb = new StringBuilder();
                 while (true) {
@@ -248,18 +250,18 @@ public class ConfigLoader {
                 return sb.toString();
             }
 
-            Boolean parseBoolean() {
+            Boolean parseBoolean() throws KanvasException {
                 if (s.startsWith("true", i)) { i += 4; return Boolean.TRUE; }
                 if (s.startsWith("false", i)) { i += 5; return Boolean.FALSE; }
                 throw new ConfigException("Invalid token for boolean at pos " + i);
             }
 
-            void parseNull() {
+            void parseNull() throws KanvasException {
                 if (s.startsWith("null", i)) { i += 4; return; }
                 throw new ConfigException("Invalid token at pos " + i);
             }
 
-            Number parseNumber() {
+            Number parseNumber() throws KanvasException {
                 int start = i;
                 if (peek() == '-') i++;
                 while (Character.isDigit(peek())) i++;
@@ -276,7 +278,7 @@ public class ConfigLoader {
                 }
             }
 
-            void expect(char c) {
+            void expect(char c) throws KanvasException {
                 skipWhitespace();
                 char n = next();
                 if (n != c) throw new ConfigException("Expected '" + c + "' but found '" + n + "' at pos " + i);

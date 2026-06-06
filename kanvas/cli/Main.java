@@ -2,6 +2,7 @@ package kanvas.cli;
 
 import kanvas.config.ConfigLoader;
 import kanvas.project.ProjectCreator;
+import kanvas.KanvasException;
 
 import java.util.*;
 import java.nio.charset.StandardCharsets;
@@ -10,7 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws KanvasException {
         if (args.length > 0 && !args[0].startsWith("--theme")) {
             runCommand(args);
             return;
@@ -51,7 +52,7 @@ public class Main {
         }
     }
 
-    private static void runCommand(String[] args) {
+    private static void runCommand(String[] args) throws KanvasException {
         switch (args[0]) {
             case "create": {
                 if (args.length < 2) throw new IllegalArgumentException("Usage: kanvas create <name> [--type <template>]");

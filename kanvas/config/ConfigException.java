@@ -1,6 +1,8 @@
 package kanvas.config;
 
-public class ConfigException extends RuntimeException {
+import kanvas.KanvasException;
+
+public class ConfigException extends KanvasException {
     public ConfigException(String message) {
         super(message);
     }

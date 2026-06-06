@@ -1,9 +1,11 @@
 package kanvas.project;
 
+import kanvas.KanvasException;
+import kanvas.cli.Text;
+
 import java.util.*;
 import java.io.*;
 import java.nio.file.*;
-import kanvas.cli.Text;
 
 
 public class ProjectCreator {
@@ -22,20 +24,17 @@ public class ProjectCreator {
         return TEMPLATE_ORDER;
     }
 
-    public static void createProject(String projectName, String templateType, String outputPath) {
+    public static void createProject(String projectName, String templateType, String outputPath) throws KanvasException { createProject(projectName, templateType, outputPath, false); }
+    public static void createProject(String projectName, String templateType, String outputPath, boolean force) throws KanvasException {
         if (projectName == null || projectName.isBlank()) throw new IllegalArgumentException("Please provide a project name");
         if (projectName.equals(".") || projectName.equals("..") || !projectName.matches("[A-Za-z0-9._-]+"))
             throw new IllegalArgumentException("Project name may only contain letters, numbers, '.', '_', and '-'");
         System.out.println(Text.style("Creating project: " + projectName, "green"));
         if (templateType == null || templateType.isBlank()) templateType = "kanvas-sketch";
         Path baseDir = Paths.get(outputPath == null ? "." : outputPath);
-        if (!templateType.matches("[A-Za-z0-9_-]+")) {
-            System.out.printf("Invalid template name '%s'. Using default template: %s\n", templateType, "kanvas-sketch");
-            templateType = "kanvas-sketch";
-        }
-        if (!TEMPLATE_FILES.containsKey(templateType)) {
-            System.out.printf("Template '%s' not found. Using default template: %s\n", templateType, "kanvas-sketch");
-            templateType = "kanvas-sketch";
+        if (!templateType.matches("[A-Za-z0-9_-]+") || !TEMPLATE_FILES.containsKey(templateType)) {
+            System.out.printf("Template '%s' not found.\nAvailable templates: %s\n", templateType, String.join(", ", TEMPLATE_ORDER));
+            System.exit(0);
         }
         Path template = Paths.get("kanvas", "assets", "templates", templateType);
         Path projectDir = baseDir.resolve(projectName);
@@ -45,20 +44,8 @@ public class ProjectCreator {
         } catch (IOException e) { throw new RuntimeException("Failed to create project directory: " + e.getMessage(), e); }
         if (Files.isDirectory(template)) {
             try (var stream = Files.walk(template)) {
-                stream.forEach(source -> {
-                    try {
-                        Path relative = template.relativize(source);
-                        Path target = projectDir.resolve(relative);
-                        if (Files.isDirectory(source)) Files.createDirectories(target);
-                        else {
-                            if (target.getParent() != null) Files.createDirectories(target.getParent());
-                            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                        }
-                        System.out.println(Text.style("\tCopied " + target.toAbsolutePath(), "green"));
-                    } catch (IOException e) {
-                        throw new RuntimeException("Failed to copy: " + source + " -> " + e.getMessage(), e);
-                    }
-                });
+                Iterator<Path> paths = stream.iterator();
+                while (paths.hasNext()) copyDirectory(paths.next(), template, projectDir, force);
                 System.out.println(Text.style("Project copied successfully!", "green"));
             } catch (IOException e) { throw new RuntimeException("Failed to create project from template: " + e.getMessage(), e); }
         } else copyBundledTemplate(templateType, projectDir);
@@ -72,6 +59,26 @@ public class ProjectCreator {
             Files.writeString(configPath, configContent);
         } catch (IOException e) { throw new RuntimeException("Failed to update kanvas.json: " + e.getMessage(), e); }
         System.out.println(Text.style("Project created at: " + projectDir.toAbsolutePath(), "green"));
+    }
+
+    private static void copyDirectory(Path source, Path template, Path projectDir, boolean force) throws KanvasException {
+        try {
+            Path relative = template.relativize(source);
+            Path target = projectDir.resolve(relative);
+            if (Files.isDirectory(source)) Files.createDirectories(target);
+            else if (force) {
+                if (target.getParent() != null) Files.createDirectories(target.getParent());
+                Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            else {
+                if (Files.exists(target)) throw new KanvasProjectException("Target already exists: " + target.toAbsolutePath());
+                if (target.getParent() != null) Files.createDirectories(target.getParent());
+                Files.copy(source, target);
+            }
+            System.out.println(Text.style("\tCopied " + target.toAbsolutePath(), "green"));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to copy: " + source + " -> " + e.getMessage(), e);
+        }
     }
 
     private static void ensureProjectDirectories(Path projectDir) {
