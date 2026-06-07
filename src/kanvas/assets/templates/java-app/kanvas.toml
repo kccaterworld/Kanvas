@@ -1,0 +1,20 @@
+name = "{{PROJECT_NAME}}"
+version = "0.1.0"
+author = "{{AUTHOR}}"
+description = "A Java application managed by Kanvas"
+mainClass = "{{MAIN_CLASS}}"
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "21"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "{{PROJECT_NAME}}.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]
