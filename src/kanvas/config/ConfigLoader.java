@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 @SuppressWarnings("unchecked")
 
 public class ConfigLoader {
+    public static Config loadConfig(File config) throws KanvasException {
+        return loadConfig(config.getParent(), Collections.emptyMap());
+    }
     public static Config loadConfig(String projectPath) throws KanvasException {
         return loadConfig(projectPath, Collections.emptyMap());
     }

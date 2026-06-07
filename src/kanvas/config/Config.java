@@ -4,7 +4,7 @@ import java.util.*;
 import java.io.*;
 
 public class Config {
-    private final String version;
+    private final String projectVersion;
     private final String author;
     private final String description;
     private final String target;
@@ -21,14 +21,14 @@ public class Config {
     private final List<File> dependencies;
     private final List<String> nativeTargets;
 
-    public Config(String projectName, String jarName, String version,
+    public Config(String projectName, String jarName, String projectVersion,
         String author, String description, String mainClass, String target, String encoding,
         String packageVersion, File icon, File mainFile, File output, List<File> sourceDirectories,
         List<File> classpath, List<File> dependencies, List<String> nativeTargets) {
         this.projectName = projectName;
         this.jarName = jarName;
         this.packageVersion = packageVersion;
-        this.version = version;
+        this.projectVersion = projectVersion;
         this.author = author;
         this.description = description;
         this.mainClass = mainClass;
@@ -43,7 +43,7 @@ public class Config {
         this.dependencies = dependencies;
     }
 
-    public String getVersion() { return version; }
+    public String getProjectVersion() { return projectVersion; }
     public String getAuthor() { return author; }
     public String getDescription() { return description; }
     public String getMainClass() { return mainClass; }
@@ -63,7 +63,7 @@ public class Config {
     public String toTOMLString() {
         StringBuilder t = new StringBuilder();
         t.append("name = ").append(tomlString(projectName)).append("\n");
-        t.append("version = ").append(tomlString(version)).append("\n");
+        t.append("version = ").append(tomlString(projectVersion)).append("\n");
         t.append("author = ").append(tomlString(author)).append("\n");
         t.append("description = ").append(tomlString(description)).append("\n");
         if (mainClass != null) t.append("mainClass = ").append(tomlString(mainClass)).append("\n");
