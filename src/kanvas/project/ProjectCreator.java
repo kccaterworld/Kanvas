@@ -13,11 +13,11 @@ public class ProjectCreator {
         "kanvas-sketch", "java-app", "java-lib", "mixed-project", "empty"
     );
     private static final Map<String, List<String>> TEMPLATE_FILES = Map.of(
-        "empty", Arrays.asList("kanvas.json"),
-        "kanvas-sketch", Arrays.asList("kanvas.json", "src/main.kvs"),
-        "java-app", Arrays.asList("kanvas.json", "src/App.java"),
-        "java-lib", Arrays.asList("kanvas.json", "src/Library.java"),
-        "mixed-project", Arrays.asList("kanvas.json", "src/App.java", "src/main.kvs")
+        "empty", Arrays.asList("kanvas.toml"),
+        "kanvas-sketch", Arrays.asList("kanvas.toml", "src/main.kvs"),
+        "java-app", Arrays.asList("kanvas.toml", "src/App.java"),
+        "java-lib", Arrays.asList("kanvas.toml", "src/Library.java"),
+        "mixed-project", Arrays.asList("kanvas.toml", "src/App.java", "src/main.kvs")
     );
 
     public static List<String> getTemplateTypes() {
@@ -50,14 +50,14 @@ public class ProjectCreator {
             } catch (IOException e) { throw new RuntimeException("Failed to create project from template: " + e.getMessage(), e); }
         } else copyBundledTemplate(templateType, projectDir);
         ensureProjectDirectories(projectDir);
-        Path configPath = projectDir.resolve("kanvas.json");
+        Path configPath = projectDir.resolve("kanvas.toml");
         try {
             String configContent = Files.readString(configPath)
                 .replace("{{PROJECT_NAME}}", projectName)
                 .replace("{{AUTHOR}}", System.getProperty("user.name", ""))
                 .replace("{{MAIN_CLASS}}", mainClassFor(templateType));
             Files.writeString(configPath, configContent);
-        } catch (IOException e) { throw new RuntimeException("Failed to update kanvas.json: " + e.getMessage(), e); }
+        } catch (IOException e) { throw new RuntimeException("Failed to update kanvas.toml: " + e.getMessage(), e); }
         System.out.println(Text.style("Project created at: " + projectDir.toAbsolutePath(), "green"));
     }
 

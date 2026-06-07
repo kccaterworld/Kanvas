@@ -17,18 +17,15 @@ public class ConfigLoader {
     public static Config loadConfig(String projectPath, Map<String, String> overrides) throws KanvasException {
         String content;
         Path base = Paths.get(projectPath);
-        Path configPath = base.resolve("kanvas.json");
+        Path configPath = base.resolve("kanvas.toml");
 
-        if (!Files.exists(configPath)) throw new ConfigException("kanvas.json not found at " + configPath.toAbsolutePath());
+        if (!Files.exists(configPath)) throw new ConfigException("kanvas.toml not found at " + configPath.toAbsolutePath());
         try {
             content = Files.readString(configPath, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new ConfigException("Failed to read kanvas.json: " + e.getMessage(), e);
+            throw new ConfigException("Failed to read kanvas.toml: " + e.getMessage(), e);
         }
-        Object parsed = JsonSimple.parse(content);
-        if (!(parsed instanceof Map)) throw new ConfigException("kanvas.json root must be a JSON object");
-
-        Map<String, Object> json = (Map<String, Object>) parsed;
+        Map<String, Object> json = TomlSimple.parse(content);
 
         String name = override(overrides, "name", getString(json, "name", null));
         String version = override(overrides, "version", getString(json, "version", null));
@@ -126,7 +123,7 @@ public class ConfigLoader {
     }
 
     private static void validateRequired(String field, String value) throws KanvasException {
-        if (value == null || value.isBlank()) throw new ConfigException(field + " is required in kanvas.json");
+        if (value == null || value.isBlank()) throw new ConfigException(field + " is required in kanvas.toml");
     }
 
     private static String getString(Map<String, Object> json, String key, String def) {
@@ -149,140 +146,113 @@ public class ConfigLoader {
         return null;
     }
 
-    static class JsonSimple {
-        public static Object parse(String s) throws KanvasException {
-            return new Parser(stripBom(s).trim()).parseValue();
+    static class TomlSimple {
+        public static Map<String, Object> parse(String content) throws KanvasException {
+            String s = content.startsWith("\uFEFF") ? content.substring(1) : content;
+            Map<String, Object> root = new LinkedHashMap<>();
+            Map<String, Object> current = root;
+            for (String rawLine : s.split("\r?\n")) {
+                String line = rawLine.trim();
+                if (line.isEmpty() || line.startsWith("#")) continue;
+                if (line.startsWith("[") && !line.startsWith("[[")) {
+                    int end = line.indexOf(']');
+                    if (end < 0) throw new ConfigException("Invalid TOML table header: " + line);
+                    String tableName = line.substring(1, end).trim();
+                    Map<String, Object> table = new LinkedHashMap<>();
+                    root.put(tableName, table);
+                    current = table;
+                    continue;
+                }
+                int eq = line.indexOf('=');
+                if (eq < 0) throw new ConfigException("Invalid TOML line: " + line);
+                String key = line.substring(0, eq).trim();
+                String valueStr = line.substring(eq + 1).trim();
+                current.put(key, parseValue(valueStr));
+            }
+            return root;
         }
 
-        private static String stripBom(String s) {
-            return (s.startsWith("\uFEFF")) ? s.substring(1) : s;
+        private static Object parseValue(String s) throws KanvasException {
+            if (s.isEmpty()) return null;
+            if (s.startsWith("\"")) return parseBasicString(s, new int[]{0});
+            if (s.startsWith("'")) return parseLiteralString(s, new int[]{0});
+            if (s.startsWith("[")) return parseArray(s, new int[]{0});
+            if (s.equals("true")) return Boolean.TRUE;
+            if (s.equals("false")) return Boolean.FALSE;
+            int hash = s.indexOf('#');
+            String num = (hash >= 0 ? s.substring(0, hash) : s).trim();
+            if (num.isEmpty()) return null;
+            try {
+                if (num.contains(".")) return Double.parseDouble(num);
+                return Long.parseLong(num);
+            } catch (NumberFormatException e) {
+                throw new ConfigException("Cannot parse TOML value: " + s);
+            }
         }
 
-        private static class Parser {
-            private final String s;
-            private int i = 0;
-
-            Parser(String s) { this.s = s; }
-
-            void skipWhitespace() {
-                while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++;
+        private static String parseBasicString(String s, int[] pos) throws KanvasException {
+            pos[0]++;
+            StringBuilder sb = new StringBuilder();
+            while (pos[0] < s.length()) {
+                char c = s.charAt(pos[0]++);
+                if (c == '"') return sb.toString();
+                if (c == '\\') {
+                    if (pos[0] >= s.length()) throw new ConfigException("Unterminated escape in TOML string");
+                    char e = s.charAt(pos[0]++);
+                    switch (e) {
+                        case '"': sb.append('"'); break;
+                        case '\\': sb.append('\\'); break;
+                        case 'n': sb.append('\n'); break;
+                        case 'r': sb.append('\r'); break;
+                        case 't': sb.append('\t'); break;
+                        case 'b': sb.append('\b'); break;
+                        case 'f': sb.append('\f'); break;
+                        default: sb.append(e);
+                    }
+                } else sb.append(c);
             }
+            throw new ConfigException("Unterminated TOML string");
+        }
 
-            char peek() { return i < s.length() ? s.charAt(i) : '\0'; }
-            char next() { return i < s.length() ? s.charAt(i++) : '\0'; }
-
-            Object parseValue() throws KanvasException {
-                skipWhitespace();
-                char c = peek();
-                if (c == '{') return parseObject();
-                if (c == '[') return parseArray();
-                if (c == '"') return parseString();
-                if (c == 't' || c == 'f') return parseBoolean();
-                if (c == 'n') { parseNull(); return null; }
-                return parseNumber();
+        private static String parseLiteralString(String s, int[] pos) throws KanvasException {
+            pos[0]++;
+            StringBuilder sb = new StringBuilder();
+            while (pos[0] < s.length()) {
+                char c = s.charAt(pos[0]++);
+                if (c == '\'') return sb.toString();
+                sb.append(c);
             }
+            throw new ConfigException("Unterminated TOML literal string");
+        }
 
-            Map<String, Object> parseObject() throws KanvasException {
-                Map<String, Object> map = new LinkedHashMap<>();
-                expect('{');
-                skipWhitespace();
-                if (peek() == '}') { next(); return map; }
-                while (true) {
-                    skipWhitespace();
-                    String key = parseString();
-                    skipWhitespace();
-                    expect(':');
-                    skipWhitespace();
-                    Object val = parseValue();
-                    map.put(key, val);
-                    skipWhitespace();
-                    char c = next();
-                    if (c == '}') break;
-                    if (c != ',') throw new ConfigException("Expected ',' or '}' in object at pos " + i);
-                }
-                return map;
-            }
-
-            List<Object> parseArray() throws KanvasException {
-                List<Object> arr = new ArrayList<>();
-                expect('[');
-                skipWhitespace();
-                if (peek() == ']') { next(); return arr; }
-                while (true) {
-                    skipWhitespace();
-                    Object v = parseValue();
-                    arr.add(v);
-                    skipWhitespace();
-                    char c = next();
-                    if (c == ']') break;
-                    if (c != ',') throw new ConfigException("Expected ',' or ']' in array at pos " + i);
-                }
-                return arr;
-            }
-
-            String parseString() throws KanvasException {
-                expect('"');
-                StringBuilder sb = new StringBuilder();
-                while (true) {
-                    if (i >= s.length()) throw new ConfigException("Unterminated string");
-                    char c = next();
-                    if (c == '"') break;
-                    if (c == '\\') {
-                        char e = next();
-                        switch (e) {
-                            case '"': sb.append('"'); break;
-                            case '\\': sb.append('\\'); break;
-                            case '/': sb.append('/'); break;
-                            case 'b': sb.append('\b'); break;
-                            case 'f': sb.append('\f'); break;
-                            case 'n': sb.append('\n'); break;
-                            case 'r': sb.append('\r'); break;
-                            case 't': sb.append('\t'); break;
-                            case 'u':
-                                String hex = s.substring(i, i+4); i += 4;
-                                sb.append((char) Integer.parseInt(hex, 16));
-                                break;
-                            default:
-                                sb.append(e);
+        private static List<Object> parseArray(String s, int[] pos) throws KanvasException {
+            pos[0]++;
+            List<Object> list = new ArrayList<>();
+            while (pos[0] < s.length()) {
+                char c = s.charAt(pos[0]);
+                if (Character.isWhitespace(c)) { pos[0]++; continue; }
+                if (c == ']') { pos[0]++; break; }
+                if (c == ',') { pos[0]++; continue; }
+                if (c == '#') break;
+                if (c == '"') list.add(parseBasicString(s, pos));
+                else if (c == '\'') list.add(parseLiteralString(s, pos));
+                else if (c == '[') list.add(parseArray(s, pos));
+                else {
+                    int start = pos[0];
+                    while (pos[0] < s.length() && s.charAt(pos[0]) != ',' && s.charAt(pos[0]) != ']') pos[0]++;
+                    String item = s.substring(start, pos[0]).trim();
+                    if (item.equals("true")) list.add(Boolean.TRUE);
+                    else if (item.equals("false")) list.add(Boolean.FALSE);
+                    else if (!item.isEmpty()) {
+                        try {
+                            list.add(item.contains(".") ? Double.parseDouble(item) : Long.parseLong(item));
+                        } catch (NumberFormatException e) {
+                            throw new ConfigException("Cannot parse TOML array value: " + item);
                         }
-                    } else sb.append(c);
-                }
-                return sb.toString();
-            }
-
-            Boolean parseBoolean() throws KanvasException {
-                if (s.startsWith("true", i)) { i += 4; return Boolean.TRUE; }
-                if (s.startsWith("false", i)) { i += 5; return Boolean.FALSE; }
-                throw new ConfigException("Invalid token for boolean at pos " + i);
-            }
-
-            void parseNull() throws KanvasException {
-                if (s.startsWith("null", i)) { i += 4; return; }
-                throw new ConfigException("Invalid token at pos " + i);
-            }
-
-            Number parseNumber() throws KanvasException {
-                int start = i;
-                if (peek() == '-') i++;
-                while (Character.isDigit(peek())) i++;
-                if (peek() == '.') {
-                    i++;
-                    while (Character.isDigit(peek())) i++;
-                }
-                String num = s.substring(start, i);
-                try {
-                    if (num.contains(".")) return Double.parseDouble(num);
-                    return Long.parseLong(num);
-                } catch (NumberFormatException ex) {
-                    throw new ConfigException("Invalid number: " + num);
+                    }
                 }
             }
-
-            void expect(char c) throws KanvasException {
-                skipWhitespace();
-                char n = next();
-                if (n != c) throw new ConfigException("Expected '" + c + "' but found '" + n + "' at pos " + i);
-            }
+            return list;
         }
     }
 }

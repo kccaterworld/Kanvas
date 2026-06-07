@@ -39,7 +39,7 @@ public class Main {
                     project = args[1];
                     overrideStart = 2;
                 }
-                System.out.print(ConfigLoader.loadConfig(project, parseOverrides(args, overrideStart)).toJSONString());
+                System.out.print(ConfigLoader.loadConfig(project, parseOverrides(args, overrideStart)).toTOMLString());
                 break;
             }
             case "run": System.out.println(Text.style("Run command selected.", "green")); break;

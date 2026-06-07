@@ -60,76 +60,70 @@ public class Config {
     public List<File> getDependencies() { return dependencies; }
     public List<String> getNativeTargets() { return nativeTargets; }
 
-    public String toJSONString() {
-        StringBuilder json = new StringBuilder();
-        json.append("{\n");
-        json.append("  \"name\": ").append(jsonString(projectName)).append(",\n");
-        json.append("  \"version\": ").append(jsonString(version)).append(",\n");
-        json.append("  \"author\": ").append(jsonString(author)).append(",\n");
-        json.append("  \"description\": ").append(jsonString(description)).append(",\n");
-        json.append("  \"mainClass\": ").append(jsonString(mainClass)).append(",\n");
-        json.append("  \"modules\": {\n");
-        json.append("    \"srcDirs\": [");
-        for (int i = 0; sourceDirectories != null && i < sourceDirectories.size(); i++) {
-            if (i > 0) json.append(", ");
-            File file = sourceDirectories.get(i);
-            json.append(jsonString(file == null ? null : file.getPath()));
-        }
-        json.append("],\n");
-        json.append("    \"outputDir\": ").append(jsonString(output == null ? null : output.getPath())).append("\n");
-        json.append("  },\n");
-        json.append("  \"classpath\": [");
+    public String toTOMLString() {
+        StringBuilder t = new StringBuilder();
+        t.append("name = ").append(tomlString(projectName)).append("\n");
+        t.append("version = ").append(tomlString(version)).append("\n");
+        t.append("author = ").append(tomlString(author)).append("\n");
+        t.append("description = ").append(tomlString(description)).append("\n");
+        if (mainClass != null) t.append("mainClass = ").append(tomlString(mainClass)).append("\n");
+        t.append("classpath = [");
         for (int i = 0; classpath != null && i < classpath.size(); i++) {
-            if (i > 0) json.append(", ");
+            if (i > 0) t.append(", ");
             File file = classpath.get(i);
-            json.append(jsonString(file == null ? null : file.getPath()));
+            t.append(tomlString(file == null ? null : file.getPath()));
         }
-        json.append("],\n");
-        json.append("  \"dependencies\": [");
+        t.append("]\n");
+        t.append("dependencies = [");
         for (int i = 0; dependencies != null && i < dependencies.size(); i++) {
-            if (i > 0) json.append(", ");
+            if (i > 0) t.append(", ");
             File file = dependencies.get(i);
-            json.append(jsonString(file == null ? null : file.getPath()));
+            t.append(tomlString(file == null ? null : file.getPath()));
         }
-        json.append("],\n");
-        json.append("  \"compiler\": {\n");
-        json.append("    \"target\": ").append(jsonString(target)).append(",\n");
-        json.append("    \"encoding\": ").append(jsonString(encoding)).append("\n");
-        json.append("  },\n");
-        json.append("  \"packaging\": {\n");
-        json.append("    \"jarName\": ").append(jsonString(jarName)).append(",\n");
-        json.append("    \"version\": ").append(jsonString(packageVersion)).append(",\n");
-        json.append("    \"icon\": ").append(jsonString(icon == null ? null : icon.getPath())).append(",\n");
-        json.append("    \"nativeTargets\": [");
+        t.append("]\n");
+        t.append("\n[modules]\n");
+        t.append("srcDirs = [");
+        for (int i = 0; sourceDirectories != null && i < sourceDirectories.size(); i++) {
+            if (i > 0) t.append(", ");
+            File file = sourceDirectories.get(i);
+            t.append(tomlString(file == null ? null : file.getPath()));
+        }
+        t.append("]\n");
+        t.append("outputDir = ").append(tomlString(output == null ? null : output.getPath())).append("\n");
+        t.append("\n[compiler]\n");
+        t.append("target = ").append(tomlString(target)).append("\n");
+        t.append("encoding = ").append(tomlString(encoding)).append("\n");
+        t.append("\n[packaging]\n");
+        t.append("jarName = ").append(tomlString(jarName)).append("\n");
+        t.append("version = ").append(tomlString(packageVersion)).append("\n");
+        if (icon != null) t.append("icon = ").append(tomlString(icon.getPath())).append("\n");
+        t.append("nativeTargets = [");
         for (int i = 0; nativeTargets != null && i < nativeTargets.size(); i++) {
-            if (i > 0) json.append(", ");
-            json.append(jsonString(nativeTargets.get(i)));
+            if (i > 0) t.append(", ");
+            t.append(tomlString(nativeTargets.get(i)));
         }
-        json.append("]\n");
-        json.append("  }\n");
-        json.append("}\n");
-        return json.toString();
+        t.append("]\n");
+        return t.toString();
     }
 
-    private static String jsonString(String value) {
-        if (value == null) return "null";
-
-        StringBuilder json = new StringBuilder("\"");
+    private static String tomlString(String value) {
+        if (value == null) return "\"\"";
+        StringBuilder s = new StringBuilder("\"");
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             switch (c) {
-                case '"': json.append("\\\""); break;
-                case '\\': json.append("\\\\"); break;
-                case '\b': json.append("\\b"); break;
-                case '\f': json.append("\\f"); break;
-                case '\n': json.append("\\n"); break;
-                case '\r': json.append("\\r"); break;
-                case '\t': json.append("\\t"); break;
+                case '"': s.append("\\\""); break;
+                case '\\': s.append("\\\\"); break;
+                case '\b': s.append("\\b"); break;
+                case '\f': s.append("\\f"); break;
+                case '\n': s.append("\\n"); break;
+                case '\r': s.append("\\r"); break;
+                case '\t': s.append("\\t"); break;
                 default:
-                    if (c < 0x20) json.append(String.format("\\u%04x", (int) c));
-                    else json.append(c);
+                    if (c < 0x20) s.append(String.format("\\u%04x", (int) c));
+                    else s.append(c);
             }
         }
-        return json.append('"').toString();
+        return s.append('"').toString();
     }
 }
