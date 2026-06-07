@@ -11,45 +11,14 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class Main {
-    public static void main(String[] args) throws KanvasException {
+    public static void main(String[] args)  throws KanvasException {
+        if (args.length == 0) StartupScreen.themeFromArgs("NEON");
         if (args.length > 0 && !args[0].startsWith("--theme")) {
             runCommand(args);
             return;
         }
         System.out.print(Text.buildAnsi("clear", "home"));
-        System.out.print(StartupScreen.render(StartupScreen.themeFromArgs(args)));
-            System.out.print("Option: ");
-            try (Scanner input = new Scanner(System.in)) {
-            String choice = input.nextLine().trim();
-            switch (choice) {
-                case "1": case "create": {
-                    printTemplateTypes();
-                    System.out.print("Select template: ");
-                    String type = templateName(input.nextLine().trim());
-                    System.out.print("Project name: ");
-                    String name = input.nextLine();
-                    ProjectCreator.createProject(name, type, ".");
-                break; }
-                case "2": case "run": {
-                    System.out.println(Text.style("Run command selected.", "green"));
-                break; }
-                case "4": case "help": {
-                    printHelp();
-                main(args); }
-                case "5": case "exit": case "quit": {
-                    System.out.println(Text.style("Exiting Kanvas CLI.", "yellow"));
-                    System.exit(0);
-                };
-                case "3": default: {
-                    System.out.println(Text.style("Invalid choice. Please try again.", "red"));
-                    main(args);
-                };
-            }
-        }
-        catch (IllegalArgumentException e) {
-            System.out.println(Text.style("Error: " + e.getMessage(), "red"));
-            main(args);
-        }
+        System.out.print(StartupScreen.render(StartupScreen.themeFromArgs(args[0])));
     }
 
     private static void runCommand(String[] args) throws KanvasException {

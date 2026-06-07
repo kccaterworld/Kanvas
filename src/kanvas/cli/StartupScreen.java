@@ -40,9 +40,9 @@ public final class StartupScreen {
         }
     }
 
-    public static Theme themeFromArgs(String[] args) {
-        if (args == null || args.length == 0) return Theme.NEON;
-        String candidate = args[0].trim();
+    public static Theme themeFromArgs(String args) {
+        if (args == null) return Theme.NEON;
+        String candidate = args.trim();
         if (candidate.startsWith("--theme=")) candidate = candidate.substring("--theme=".length()).trim();
         return Theme.fromString(candidate);
     }
