@@ -12,7 +12,7 @@ rm -rf "$CLASSES_DIR"
 mkdir -p "$CLASSES_DIR"
 
 mapfile -d '' JAVA_SOURCES < <(
-  find kanvas \
+  find ./src/kanvas \
     -type f \
     -name '*.java' \
     ! -path '*/assets/templates/*' \
@@ -30,6 +30,6 @@ jar --create \
   --file "$JAR_FILE" \
   --main-class kanvas.cli.Main \
   -C "$CLASSES_DIR" . \
-  -C "$ROOT_DIR" kanvas
+  -C "$ROOT_DIR" src/kanvas
 
 echo "Built $JAR_FILE"
