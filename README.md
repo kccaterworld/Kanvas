@@ -13,16 +13,22 @@ Kanvas is still in its early stages. The CLI, config format, templates, and prep
 
 TODO before alpha release:
 
-- [ ] Finish `kanvas create`
-- [ ] `kanvas build/run`
-- [ ] Proper template projects and example sketches
-- [ ] Better error messages
-- [ ] Proper test suite and workflow
+- [X] `kanvas create` with template selection
+- [X] `kanvas.toml` config format and `ConfigLoader`
+- [X] Project templates (`kanvas-sketch`, `java-lib`, `mixed-project`)
+- [X] File-by-file preprocessor
+- [X] Entire project preprocessor
+- [ ] `kanvas run`, connecting to `KanvasRunner`
+- [ ] `JavaCompiler` to wrap javac and report errors
+- [ ] `BuildManager` to run preprocessing, compilation, and packaging steps
+- [ ] `DependencyResolver` to auto-download JARs from Maven Central
+- [ ] End-to-end `kanvas build` and `kanvas run` commands
+- [ ] Proper test suite and CI workflow
 
 ## Features
 
 - Create new sketch/app/library projects from templates
-- `kanvas.json` for project metadata, compiler settings, dependencies, and packaging
+- `kanvas.toml` for project metadata, compiler settings, dependencies, and packaging
 - Preprocess `.kvs` files into Java source code
 
 ## Usage
