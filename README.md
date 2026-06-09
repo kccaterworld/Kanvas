@@ -2,27 +2,12 @@
 
 Kanvas is a creative coding and rendering toolkit for Java. You can create, configure, build, and package visual projects using a simple CLI, project templates, and a preprocessor for sketch syntax. It's intended to be easy to learn while offering customizability and power for more complex projects.
 
-Kanvas is currently still in early development, and many features may not be implemented yet.
+Kanvas is officially in alpha stage, which is a big milestone for me, but users should still expect bugs, missing features, and breaking changes as I continue development. The core features are in place, but there's a lot more to build out before it's ready for production use. Feedback and contributions are very welcome! Please feel free to open issues or submit pull requests on GitHub.
 
 ## Status
 
 ![Build](https://github.com/kccaterworld/Kanvas/actions/workflows/build.yml/badge.svg)&nbsp;&nbsp;
 ![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkccaterworld%2FKanvas%2Fmain%2F.github%2Fbadges%2Fversion.yml&query=%24.version&label=version&color=blue)&nbsp;&nbsp;
-
-TODO before alpha release:
-
-- [X] `kanvas create` with template selection
-- [X] `kanvas.toml` config format and `ConfigLoader`
-- [X] Project templates (`kanvas-sketch`, `java-lib`, `mixed-project`)
-- [X] File-by-file preprocessor
-- [X] Entire project preprocessor
-- [X] `BuildManager` to run preprocessing, compilation, and packaging steps
-- [X] `kanvas run`, connecting to `KanvasRunner`
-- [X] End-to-end `kanvas build` and `kanvas run` commands
-- [X] Window creation and rendering (`KanvasWindow`, `KanvasGraphics`)
-- [X] Full standard library (text, images, more shapes)
-- [ ] `DependencyResolver` to auto-download JARs from Maven Central
-- [ ] Proper test suite and CI workflow
 
 ## Features
 
@@ -30,6 +15,20 @@ TODO before alpha release:
 - `kanvas.toml` for project metadata, compiler settings, dependencies, and packaging
 - Preprocess `.kvs` files into Java source code
 - AWT-backed window with hardware-accelerated rendering via `BufferStrategy`
+
+Upcoming features:
+
+- [ ] `DependencyResolver` to auto-download JARs from Maven Central
+- [ ] Proper test suite and CI workflow
+- [ ] Packaging projects into native executables
+- [ ] Dependency management and integration
+- [ ] Fully custom build system
+- [ ] GUI app with text editor, project management, and live preview
+- [ ] More drawing features
+- [ ] Math libraries
+- [ ] GPU acceleration (maybe)
+- [ ] Template projects for games, data visualization, generative art, etc.
+- [ ] Community-contributed projects and libraries
 
 ## Installation
 
@@ -139,19 +138,6 @@ mainClass = "Main"
 # or
 mainClass = "kanvas.generated.Main"
 ```
-
-## Planned Features
-
-- Packaging projects into runnable JARs and eventually native executables
-- Dependency management and integration
-- Custom build system
-- Runnable `.kvs` files
-- GUI app with text editor, project management, and live preview
-- More drawing features and a full standard library
-- Math libraries
-- GPU acceleration (maybe)
-- Template projects for games, data visualization, generative art, etc.
-- Community-contributed projects and libraries
 
 ## Build Stack
 
