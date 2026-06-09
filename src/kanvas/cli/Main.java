@@ -2,6 +2,8 @@ package kanvas.cli;
 
 import kanvas.config.ConfigLoader;
 import kanvas.project.ProjectCreator;
+import kanvas.builder.BuildManager;
+import kanvas.runtime.KanvasRunner;
 import kanvas.KanvasException;
 
 import java.util.*;
@@ -19,6 +21,7 @@ public class Main {
         }
         System.out.print(Text.buildAnsi("clear", "home"));
         System.out.print(StartupScreen.render(StartupScreen.themeFromArgs(args[0])));
+        runCommand(args.length > 0 && args[0].startsWith("--theme") ? Arrays.copyOfRange(args, 1, args.length) : new String[0]);
     }
 
     private static void runCommand(String[] args) throws KanvasException {
@@ -42,7 +45,16 @@ public class Main {
                 System.out.print(ConfigLoader.loadConfig(project, parseOverrides(args, overrideStart)).toTOMLString());
                 break;
             }
-            case "run": System.out.println(Text.style("Run command selected.", "green")); break;
+            case "build": {
+                try { new BuildManager(resolveConfigPath()).build(); }
+                catch (KanvasException e) { System.out.println(Text.style("Build failed: " + e.getMessage(), "red")); System.exit(1); }
+                break;
+            }
+            case "run": {
+                try { KanvasRunner.run(resolveConfigPath()); }
+                catch (KanvasException e) { System.out.println(Text.style("Run failed: " + e.getMessage(), "red")); System.exit(1); }
+                break;
+            }
             case "help": case "-h": case "--help": printHelp(); break;
             default: throw new IllegalArgumentException("Unknown command: " + args[0]);
         }
@@ -92,6 +104,10 @@ public class Main {
         int i = 1;
         for (String templateType : ProjectCreator.getTemplateTypes())
             System.out.println("  " + (i++) + ". " + templateType);
+    }
+
+    private static Path resolveConfigPath() {
+        return Paths.get("kanvas.toml").toAbsolutePath();
     }
 
     private static void printHelp() {
