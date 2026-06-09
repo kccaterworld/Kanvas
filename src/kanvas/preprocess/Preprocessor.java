@@ -77,7 +77,6 @@ public class Preprocessor {
         for (MethodDeclaration method : parsed.methods)
             output.append(indent(method.toSource())).append("\n\n");
 
-        addDefaultMethod(output, parsed.methodNames, "settings");
         addDefaultMethod(output, parsed.methodNames, "setup");
         addDefaultMethod(output, parsed.methodNames, "draw");
         addDefaultMethod(output, parsed.methodNames, "mousePressed");
@@ -88,13 +87,9 @@ public class Preprocessor {
         addDefaultMethod(output, parsed.methodNames, "keyPressed");
         addDefaultMethod(output, parsed.methodNames, "keyReleased");
         addDefaultMethod(output, parsed.methodNames, "keyTyped");
-        addDefaultMethod(output, parsed.methodNames, "windowMoved");
-
         output.append("    public static void main(String[] args) {\n");
         output.append("        ").append(generatedClassName).append(" instance = new ").append(generatedClassName).append("();\n");
-        output.append("        instance.settings();\n");
-        output.append("        instance.setup();\n");
-        output.append("        instance.draw();\n");
+        output.append("        instance.start();\n");
         output.append("    }\n\n");
 
         output.append("}\n");
