@@ -26,10 +26,11 @@ fi
 
 javac --release 21 -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
 
+cp -r src/kanvas/assets "$CLASSES_DIR/kanvas/"
+
 jar --create \
   --file "$JAR_FILE" \
   --main-class kanvas.cli.Main \
-  -C "$CLASSES_DIR" . \
-  -C "$ROOT_DIR" src/kanvas
+  -C "$CLASSES_DIR" .
 
 echo "Built $JAR_FILE"
