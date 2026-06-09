@@ -13,15 +13,22 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class Main {
-    public static void main(String[] args)  throws KanvasException {
-        if (args.length == 0) StartupScreen.themeFromArgs("NEON");
-        if (args.length > 0 && !args[0].startsWith("--theme")) {
+    public static void main(String[] args) throws KanvasException {
+        if (args.length == 0) {
+            KanvasInstaller.install(null);
+            System.out.print(Text.buildAnsi("clear", "home"));
+            System.out.print(StartupScreen.render(StartupScreen.Theme.NEON));
+            return;
+        }
+        if (!args[0].startsWith("--theme")) {
             runCommand(args);
             return;
         }
+        StartupScreen.Theme theme = StartupScreen.themeFromArgs(args[0]);
+        String[] remaining = Arrays.copyOfRange(args, 1, args.length);
         System.out.print(Text.buildAnsi("clear", "home"));
-        System.out.print(StartupScreen.render(StartupScreen.themeFromArgs(args[0])));
-        runCommand(args.length > 0 && args[0].startsWith("--theme") ? Arrays.copyOfRange(args, 1, args.length) : new String[0]);
+        System.out.print(StartupScreen.render(theme));
+        if (remaining.length > 0) runCommand(remaining);
     }
 
     private static void runCommand(String[] args) throws KanvasException {
@@ -53,6 +60,13 @@ public class Main {
             case "run": {
                 try { KanvasRunner.run(resolveConfigPath()); }
                 catch (KanvasException e) { System.out.println(Text.style("Run failed: " + e.getMessage(), "red")); System.exit(1); }
+                break;
+            }
+            case "install": {
+                String dir = null;
+                for (int i = 1; i < args.length; i++)
+                    if ("--dir".equals(args[i]) && i + 1 < args.length) dir = args[++i];
+                KanvasInstaller.install(dir);
                 break;
             }
             case "help": case "-h": case "--help": printHelp(); break;
