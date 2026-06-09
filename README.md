@@ -20,7 +20,8 @@ TODO before alpha release:
 - [X] Entire project preprocessor
 - [X] `BuildManager` to run preprocessing, compilation, and packaging steps
 - [X] `kanvas run`, connecting to `KanvasRunner`
-- [ ] End-to-end `kanvas build` and `kanvas run` commands
+- [X] End-to-end `kanvas build` and `kanvas run` commands
+- [ ] Finish standard library and implement drawing features
 - [ ] `JavaCompiler` to wrap javac and report errors (not necessary for alpha)
 - [ ] `DependencyResolver` to auto-download JARs from Maven Central (not necessary for alpha)
 - [ ] Proper test suite and CI workflow (not necessary for alpha)
