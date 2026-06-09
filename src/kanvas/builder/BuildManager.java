@@ -18,8 +18,8 @@ public class BuildManager {
         this.config = ConfigLoader.loadConfig(configPath.toFile());
     }
 
-    private void compileFile(Path file, Path outputDir) throws KanvasException {
-        try { CompileTool.compile(file, outputDir);
+    private void compileFile(Path file, Path outputDir, List<Path> classpath) throws KanvasException {
+        try { CompileTool.compile(file, outputDir, classpath);
         } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency for " + file + ": " + e.getMessage(), e);
         } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + file + ": " + e.getMessage(), e);
         } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error in " + file, e); }
@@ -29,10 +29,11 @@ public class BuildManager {
         if (!CompileTool.checkCanRun()) throw new MissingDependencyException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         List<Path> generatedFiles = KanvasPreprocessor.preprocess(configPath.toFile());
         Path outputDir = config.getOutput().toPath().resolve("classes");
+        List<Path> classpath = runtimeClasspath();
         List<File> srcDirs = config.getSourceDirectories();
         List<File> javaFiles = new ArrayList<>();
         for (Path generatedFile : generatedFiles) {
-            compileFile(generatedFile, outputDir);
+            compileFile(generatedFile, outputDir, classpath);
         }
         for (File srcDir : srcDirs) {
             try (Stream<Path> paths = Files.walk(srcDir.toPath())) {
@@ -44,7 +45,16 @@ public class BuildManager {
             } catch (Exception e) { throw new KanvasException("Error occurred while walking directory: " + srcDir.getPath(), e); }
         }
         for (File javaFile : javaFiles) {
-            compileFile(javaFile.toPath(), outputDir);
+            compileFile(javaFile.toPath(), outputDir, classpath);
+        }
+    }
+
+    private static List<Path> runtimeClasspath() {
+        try {
+            java.net.URL location = BuildManager.class.getProtectionDomain().getCodeSource().getLocation();
+            return List.of(Path.of(location.toURI()).toAbsolutePath());
+        } catch (Exception e) {
+            return List.of();
         }
     }
 
