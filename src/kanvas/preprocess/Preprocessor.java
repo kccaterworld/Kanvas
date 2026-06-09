@@ -90,6 +90,13 @@ public class Preprocessor {
         addDefaultMethod(output, parsed.methodNames, "keyTyped");
         addDefaultMethod(output, parsed.methodNames, "windowMoved");
 
+        output.append("    public static void main(String[] args) {\n");
+        output.append("        ").append(generatedClassName).append(" instance = new ").append(generatedClassName).append("();\n");
+        output.append("        instance.settings();\n");
+        output.append("        instance.setup();\n");
+        output.append("        instance.draw();\n");
+        output.append("    }\n\n");
+
         output.append("}\n");
         return output.toString();
     }

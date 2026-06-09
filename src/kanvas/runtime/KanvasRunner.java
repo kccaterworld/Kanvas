@@ -13,6 +13,8 @@ public class KanvasRunner {
         Config config = buildManager.getConfig();
         buildManager.build();
         String mainClass = config.getMainClass();
+        if (mainClass == null || mainClass.isBlank())
+            throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
         int exitCode = -1;
         try {
             exitCode = new ProcessBuilder(
