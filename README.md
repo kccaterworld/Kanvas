@@ -18,12 +18,12 @@ TODO before alpha release:
 - [X] Project templates (`kanvas-sketch`, `java-lib`, `mixed-project`)
 - [X] File-by-file preprocessor
 - [X] Entire project preprocessor
-- [ ] `kanvas run`, connecting to `KanvasRunner`
-- [ ] `JavaCompiler` to wrap javac and report errors
 - [ ] `BuildManager` to run preprocessing, compilation, and packaging steps
-- [ ] `DependencyResolver` to auto-download JARs from Maven Central
+- [ ] `kanvas run`, connecting to `KanvasRunner`
 - [ ] End-to-end `kanvas build` and `kanvas run` commands
-- [ ] Proper test suite and CI workflow
+- [ ] `JavaCompiler` to wrap javac and report errors (not necessary for alpha)
+- [ ] `DependencyResolver` to auto-download JARs from Maven Central (not necessary for alpha)
+- [ ] Proper test suite and CI workflow (not necessary for alpha)
 
 ## Features
 
