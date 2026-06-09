@@ -15,18 +15,35 @@ public class KanvasRunner {
         String mainClass = config.getMainClass();
         if (mainClass == null || mainClass.isBlank())
             throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
+
+        String sketchClasses = config.getOutput().toPath().resolve("classes").toAbsolutePath().toString();
+        String runtimeClasses = runtimeClasspath();
+        String classpath = runtimeClasses.isEmpty()
+            ? sketchClasses
+            : sketchClasses + File.pathSeparator + runtimeClasses;
+
+        // Allow short names like "Main" — resolve to kanvas.generated.Main
+        String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
+
         int exitCode = -1;
         try {
-            exitCode = new ProcessBuilder(
-                "java",
-                "-cp", config.getOutput().toPath().resolve("classes").toAbsolutePath().toString(),
-                mainClass
-            ).inheritIO().start().waitFor();
+            exitCode = new ProcessBuilder("java", "-cp", classpath, resolvedClass)
+                .inheritIO().start().waitFor();
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new KanvasException("Application process was interrupted: " + e.getMessage(), e);
         }
         if (exitCode != 0) throw new KanvasException("Application exited with non-zero exit code: " + exitCode);
+    }
+
+    // Finds the JAR or class directory that contains the Kanvas runtime classes.
+    private static String runtimeClasspath() {
+        try {
+            java.net.URL location = KanvasScript.class.getProtectionDomain().getCodeSource().getLocation();
+            return Path.of(location.toURI()).toAbsolutePath().toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 }
