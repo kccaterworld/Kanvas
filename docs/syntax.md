@@ -5,9 +5,6 @@ small, Java-compatible format for sketches: imports, variables, and functions
 look like Java, while the Kanvas preprocessor wraps top-level declarations in a
 generated Java class.
 
-> Note: the `.kvs` preprocessor is not implemented yet. This document defines
-> the syntax that the preprocessor will support.
-
 ## Imports
 
 Use Java import statements at the top of the file. Standard Java libraries and
