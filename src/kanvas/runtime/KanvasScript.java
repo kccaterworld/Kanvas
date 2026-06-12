@@ -6,18 +6,25 @@ import kanvas.libs.graphics.KanvasGraphics;
 import java.awt.*;
 import javax.swing.SwingUtilities;
 
+enum DrawMode { CORNER, CORNERS, RADIUS, CENTER }
+
 public abstract class KanvasScript extends KanvasStdlib {
     // Package-private: accessed by KanvasWindow
     int bgColor = color(255);
     volatile boolean loop = true;
     boolean resizable = false;
     boolean fullscreen = false;
+    DrawMode rectMode = DrawMode.CORNER,
+        ellipseMode = DrawMode.CENTER,
+        imageMode = DrawMode.CORNER,
+        shapeMode = DrawMode.CORNER;
 
     // Public: read by KanvasGraphics (kanvas.libs.graphics); setters are the API
     public int fillColor = color(0);
     public int strokeColor = color(0);
     public boolean fill = true;
     public boolean stroke = true;
+    public float strokeWeight = 1;
     public boolean smoothing = true;
     private KVector location = new KVector(20, 20);
 
@@ -52,16 +59,13 @@ public abstract class KanvasScript extends KanvasStdlib {
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         displayWidth = screen.width;
         displayHeight = screen.height;
-
         settings();
 
         window = new KanvasWindow(this);
         graphics = new KanvasGraphics(this);
 
-        try {
-            SwingUtilities.invokeAndWait(window::open);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create window", e);
+        try { SwingUtilities.invokeAndWait(window::open);
+        } catch (Exception e) { throw new RuntimeException("Failed to create window", e);
         }
 
         Graphics2D setupG2d = window.acquireGraphics();
@@ -69,38 +73,31 @@ public abstract class KanvasScript extends KanvasStdlib {
         setup();
         setupG2d.dispose();
         window.show();
-
         Thread renderThread = new Thread(this::renderLoop, "kanvas-render");
         renderThread.setDaemon(true);
         renderThread.start();
 
-        try { window.awaitShutdown(); } catch (InterruptedException ignored) {}
+        try { window.awaitShutdown();
+        } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage());
+        }
     }
 
     private void renderLoop() {
         while (window.isRunning()) {
             long frameStart = System.nanoTime();
-
             Graphics2D g2d = window.acquireGraphics();
             graphics.setContext(g2d);
             draw();
             g2d.dispose();
             window.show();
-
             frameCount++;
-
             long budget = (long)(1_000_000_000.0 / frameRate);
             long elapsed = System.nanoTime() - frameStart;
             long sleep = budget - elapsed;
-            if (sleep > 0) {
-                try { Thread.sleep(sleep / 1_000_000, (int)(sleep % 1_000_000)); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-            }
-
-            if (!loop) {
-                try { synchronized(this) { wait(); } }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-            }
+            if (sleep > 0) try { Thread.sleep(sleep / 1_000_000, (int)(sleep % 1_000_000));
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            if (!loop) try { synchronized(this) { wait(); }
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
     }
 
@@ -111,8 +108,9 @@ public abstract class KanvasScript extends KanvasStdlib {
         size(100, 100);
         background(200);
     }
-    public void setup() {}
-    public void draw() {}
+    public void setup() { }
+    public void draw() { }
+    public void dispose() { }
 
     public void redraw() {
         if (window == null) return;
@@ -122,6 +120,7 @@ public abstract class KanvasScript extends KanvasStdlib {
         g2d.dispose();
         window.show();
     }
+
     public void noLoop() { this.loop = false; }
     public void loop() { this.loop = true; synchronized(this) { notifyAll(); } }
     public void frameRate(float fps) { this.frameRate = fps; }
@@ -190,35 +189,50 @@ public abstract class KanvasScript extends KanvasStdlib {
         this.strokeColor = color(r, g, b);
     }
     protected void noStroke() { this.stroke = false; }
+    protected void strokeWeight(float weight) {
+        if (graphics != null) this.strokeWeight = weight;
+    }
 
     // Shapes
+    protected void point(float x, float y) { if (graphics != null) graphics.point(x, y); }
+    protected void line(float x1, float y1, float x2, float y2) { if (graphics != null) graphics.line(x1, y1, x2, y2); }
     protected void arc(float x, float y, float w, float h, float start, float stop) {
-        if (graphics != null) graphics.arc(x, y, w, h, start, stop);
+        if (graphics == null) return;
+        float[] r = resolveToCorner(x, y, w, h, ellipseMode);
+        graphics.arc(r[0], r[1], r[2], r[3], start, stop);
     }
+    protected void circle(float x, float y, float d) { ellipse(x, y, d, d); }
     protected void ellipse(float x, float y, float w, float h) {
-        if (graphics != null) graphics.ellipse(x, y, w, h);
+        if (graphics == null) return;
+        float[] r = resolveToCorner(x, y, w, h, ellipseMode);
+        graphics.ellipse(r[0], r[1], r[2], r[3]);
     }
-    protected void circle(float x, float y, float d) {
-        if (graphics != null) graphics.circle(x, y, d);
-    }
-    protected void line(float x1, float y1, float x2, float y2) {
-        if (graphics != null) graphics.line(x1, y1, x2, y2);
-    }
-    protected void point(float x, float y) {
-        if (graphics != null) graphics.point(x, y);
-    }
+    protected void square(float x, float y, float s) { rect(x, y, s, s); }
     protected void quad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
         if (graphics != null) graphics.quad(x1, y1, x2, y2, x3, y3, x4, y4);
     }
     protected void rect(float x, float y, float w, float h) {
-        if (graphics != null) graphics.rect(x, y, w, h);
-    }
-    protected void square(float x, float y, float s) {
-        if (graphics != null) graphics.square(x, y, s);
+        if (graphics == null) return;
+        float[] r = resolveToCorner(x, y, w, h, rectMode);
+        graphics.rect(r[0], r[1], r[2], r[3]);
     }
     protected void triangle(float x1, float y1, float x2, float y2, float x3, float y3) {
         if (graphics != null) graphics.triangle(x1, y1, x2, y2, x3, y3);
     }
+
+    private static float[] resolveToCorner(float x, float y, float w, float h, DrawMode mode) {
+        return switch (mode) {
+            case CORNER -> new float[]{x, y, w, h};
+            case CORNERS -> new float[]{x, y, w - x, h - y};
+            case CENTER -> new float[]{x - w / 2, y - h / 2, w, h};
+            case RADIUS -> new float[]{x - w, y - h, w * 2, h * 2};
+        };
+    }
+
+    protected void imageMode(DrawMode mode) { this.imageMode = mode; }
+    protected void rectMode(DrawMode mode) { this.rectMode = mode; }
+    protected void ellipseMode(DrawMode mode) { this.ellipseMode = mode; }
+    protected void shapeMode(DrawMode mode) { this.shapeMode = mode; }
 
     // Colors
     public static int color(int a, int r, int g, int b) { return (a << 24) | (r << 16) | (g << 8) | b; }
