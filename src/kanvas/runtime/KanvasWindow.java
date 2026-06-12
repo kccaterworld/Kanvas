@@ -1,20 +1,8 @@
 package kanvas.runtime;
 
-import java.awt.BorderLayout;
-import java.awt.Canvas;
-import java.awt.Dimension;
-import java.awt.Toolkit;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.BufferStrategy;
-import java.awt.Graphics2D;
 import java.util.concurrent.CountDownLatch;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -31,7 +19,6 @@ class KanvasWindow {
         this.sketch = sketch;
     }
 
-    // Called via SwingUtilities.invokeAndWait from KanvasScript.start()
     void open() {
         canvas = new Canvas();
         canvas.setPreferredSize(new Dimension((int)sketch.width, (int)sketch.height));
@@ -52,6 +39,7 @@ class KanvasWindow {
         frame.addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) {
                 running = false;
+                sketch.dispose();
                 shutdownLatch.countDown();
                 System.exit(0);
             }
@@ -114,27 +102,19 @@ class KanvasWindow {
                 sketch.keyTyped();
             }
         });
-
         frame.setVisible(true);
         canvas.requestFocusInWindow();
         canvas.createBufferStrategy(2);
         strategy = canvas.getBufferStrategy();
     }
 
-    Graphics2D acquireGraphics() {
-        return (Graphics2D) strategy.getDrawGraphics();
-    }
-
+    Graphics2D acquireGraphics() { return (Graphics2D) strategy.getDrawGraphics(); }
     void show() {
         strategy.show();
         Toolkit.getDefaultToolkit().sync();
     }
-
     boolean isRunning() { return running; }
-
-    void awaitShutdown() throws InterruptedException {
-        shutdownLatch.await();
-    }
+    void awaitShutdown() throws InterruptedException { shutdownLatch.await(); }
 
     void resize(int w, int h) {
         if (canvas == null) return;
@@ -145,16 +125,10 @@ class KanvasWindow {
                 canvas.createBufferStrategy(2);
                 strategy = canvas.getBufferStrategy();
             });
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to resize window", e);
+        } catch (Exception e) { throw new RuntimeException("Failed to resize window", e);
         }
     }
 
-    void setTitle(String title) {
-        if (frame != null) frame.setTitle(title);
-    }
-
-    void setResizable(boolean resizable) {
-        if (frame != null) frame.setResizable(resizable);
-    }
+    void setTitle(String title) { if (frame != null) frame.setTitle(title); }
+    void setResizable(boolean resizable) { if (frame != null) frame.setResizable(resizable); }
 }
