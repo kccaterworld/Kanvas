@@ -1,0 +1,39 @@
+import kanvas.tui;
+
+void setup() {
+    setTitle("Kanvas TUI - Basic Drawing");
+    frameRate(0);
+}
+
+void draw() {
+    clear();
+
+    setColor(2, 0);
+    hline(2, 1, cols - 4, '=');
+    hline(2, rows - 2, cols - 4, '=');
+    vline(1, 2, rows - 4, '|');
+    vline(cols - 2, 2, rows - 4, '|');
+
+    setColor(14, 0);
+    text(cols / 2 - 7, 3, "TUI Basic Test");
+
+    setColor(10, 0);
+    text(4, 5, "Text rendering: OK");
+
+    setColor(12, 0);
+    box(4, 7, 20, 5);
+
+    setColor(11, 0);
+    text(6, 9, "Box: OK");
+
+    setColor(13, 0);
+    hline(4, 13, 30, '-');
+    text(4, 14, "hline: OK");
+
+    setColor(9, 0);
+    vline(40, 6, 8, '|');
+    text(42, 9, "vline: OK");
+
+    setColor(7, 0);
+    text(4, rows - 3, "Press Ctrl+C to exit");
+}
