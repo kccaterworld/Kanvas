@@ -67,10 +67,20 @@ public class Preprocessor {
             output.append("package ").append(packageName).append(";\n\n");
         }
 
+        boolean isTUI = parsed.imports.remove("import kanvas.tui;");
+        parsed.imports.remove("import kanvas.gui;");
+
         for (String importLine : parsed.imports)
             output.append(importLine).append("\n");
-        output.append("import kanvas.runtime.KanvasScript;\n\n");
-        output.append("public class ").append(generatedClassName).append(" extends KanvasScript {\n");
+
+        if (isTUI) {
+            output.append("import kanvas.tui.KanvasTUIScript;\n");
+            output.append("import kanvas.tui.KeyEvent;\n\n");
+            output.append("public class ").append(generatedClassName).append(" extends KanvasTUIScript {\n");
+        } else {
+            output.append("import kanvas.gui.KanvasScript;\n\n");
+            output.append("public class ").append(generatedClassName).append(" extends KanvasScript {\n");
+        }
 
         for (String field : parsed.fields)
             output.append(indent(field)).append("\n\n");
@@ -79,14 +89,16 @@ public class Preprocessor {
 
         addDefaultMethod(output, parsed.methodNames, "setup");
         addDefaultMethod(output, parsed.methodNames, "draw");
-        addDefaultMethod(output, parsed.methodNames, "mousePressed");
-        addDefaultMethod(output, parsed.methodNames, "mouseReleased");
-        addDefaultMethod(output, parsed.methodNames, "mouseClicked");
-        addDefaultMethod(output, parsed.methodNames, "mouseDragged");
-        addDefaultMethod(output, parsed.methodNames, "mouseWheel");
-        addDefaultMethod(output, parsed.methodNames, "keyPressed");
-        addDefaultMethod(output, parsed.methodNames, "keyReleased");
-        addDefaultMethod(output, parsed.methodNames, "keyTyped");
+        if (!isTUI) {
+            addDefaultMethod(output, parsed.methodNames, "mousePressed");
+            addDefaultMethod(output, parsed.methodNames, "mouseReleased");
+            addDefaultMethod(output, parsed.methodNames, "mouseClicked");
+            addDefaultMethod(output, parsed.methodNames, "mouseDragged");
+            addDefaultMethod(output, parsed.methodNames, "mouseWheel");
+            addDefaultMethod(output, parsed.methodNames, "keyPressed");
+            addDefaultMethod(output, parsed.methodNames, "keyReleased");
+            addDefaultMethod(output, parsed.methodNames, "keyTyped");
+        }
         output.append("    public static void main(String[] args) {\n");
         output.append("        ").append(generatedClassName).append(" instance = new ").append(generatedClassName).append("();\n");
         output.append("        instance.start();\n");
