@@ -2,7 +2,6 @@
 .mtj.tmp/
 out/
 build/
-testing/
 
 *.class
 *.log
@@ -16,3 +15,5 @@ testing/
 *.rar
 hs_err_pid*
 replay_pid*
+
+ProcessCraft/
