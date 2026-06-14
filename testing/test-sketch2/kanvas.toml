@@ -1,0 +1,20 @@
+name = "test-sketch2"
+version = "0.1.0"
+author = "Kemal"
+description = "A Kanvas sketch project"
+mainClass = "Main"
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "21"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "test-sketch2.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]

@@ -1,0 +1,77 @@
+// Tests every shape primitive with fill, stroke, and strokeWeight.
+
+void setup() {
+    size(800, 600);
+    strokeWeight(2);
+}
+
+void draw() {
+    background(20);
+
+    // rect
+    fill(100, 180, 255);
+    stroke(200, 230, 255);
+    rect(50, 50, 120, 80);
+
+    // square
+    fill(180, 100, 255);
+    stroke(220, 180, 255);
+    square(220, 50, 80);
+
+    // ellipse
+    fill(100, 220, 140);
+    stroke(180, 255, 200);
+    ellipse(400, 90, 120, 80);
+
+    // circle
+    fill(255, 180, 80);
+    stroke(255, 220, 160);
+    circle(540, 90, 80);
+
+    // triangle
+    fill(255, 100, 100);
+    stroke(255, 180, 180);
+    triangle(650, 130, 700, 50, 750, 130);
+
+    // quad
+    fill(255, 220, 80);
+    stroke(255, 240, 160);
+    quad(50, 220, 150, 190, 180, 270, 60, 290);
+
+    // line (stroke only)
+    stroke(200, 200, 200);
+    strokeWeight(3);
+    line(220, 200, 370, 280);
+    strokeWeight(2);
+
+    // arc (bottom half of ellipse)
+    fill(80, 200, 255);
+    stroke(160, 230, 255);
+    arc(480, 240, 140, 100, 0, 3.14159f);
+
+    // point (needs larger strokeWeight to be visible)
+    stroke(255, 255, 255);
+    strokeWeight(6);
+    point(650, 230);
+    point(680, 250);
+    point(710, 230);
+    strokeWeight(2);
+
+    // noFill / stroke only rect
+    noFill();
+    stroke(255, 120, 120);
+    rect(50, 340, 200, 120);
+
+    // noStroke / fill only circle
+    fill(120, 255, 180);
+    noStroke();
+    circle(330, 400, 100);
+
+    // nested rects to test strokeWeight
+    noFill();
+    stroke(255, 200, 80);
+    strokeWeight(1); rect(480, 340, 120, 80);
+    strokeWeight(3); rect(500, 360, 80, 40);
+    strokeWeight(6); rect(520, 375, 40, 10);
+    strokeWeight(2);
+}

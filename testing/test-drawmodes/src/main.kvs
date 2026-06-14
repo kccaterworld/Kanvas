@@ -1,0 +1,50 @@
+// Tests rectMode and ellipseMode.
+// Each column draws the same logical shape using a different mode.
+// All four shapes in a row should look identical if modes are working correctly.
+
+void setup() {
+    size(800, 400);
+}
+
+void draw() {
+    background(30);
+    noStroke();
+
+    // Row 1: rectMode — all four should produce a 100x60 rect centred on the dot
+    int y = 120;
+    stroke(255, 255, 0); strokeWeight(3); noFill();
+    point(200, y); point(400, y); point(600, y);
+
+    fill(100, 180, 255); noStroke();
+
+    rectMode(CORNER);
+    rect(150, 90, 100, 60);      // CORNER: x,y = top-left
+
+    rectMode(CENTER);
+    rect(400, y, 100, 60);       // CENTER: x,y = centre
+
+    rectMode(CORNERS);
+    rect(550, 90, 650, 150);     // CORNERS: x,y = top-left, w,h = bottom-right
+
+    rectMode(RADIUS);
+    rect(750, y, 50, 30);        // RADIUS: x,y = centre, w,h = half-extents (but x is 750 which is out of view to show it differently)
+
+    // Row 2: ellipseMode — same idea
+    y = 300;
+    stroke(255, 255, 0); strokeWeight(3); noFill();
+    point(200, y); point(400, y); point(600, y);
+
+    fill(255, 140, 80); noStroke();
+
+    ellipseMode(CORNER);
+    ellipse(150, 270, 100, 60);  // CORNER: x,y = top-left of bounding box
+
+    ellipseMode(CENTER);
+    ellipse(400, y, 100, 60);    // CENTER: x,y = centre (default)
+
+    ellipseMode(CORNERS);
+    ellipse(550, 270, 650, 330); // CORNERS: x,y = top-left, w,h = bottom-right
+
+    ellipseMode(RADIUS);
+    ellipse(750, y, 50, 30);     // RADIUS: x,y = centre, w,h = radii
+}

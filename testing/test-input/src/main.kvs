@@ -1,0 +1,47 @@
+// Tests mouse and keyboard input.
+// - Circle follows the mouse
+// - Click to drop a persistent dot (up to 64 stored)
+// - Press 'c' to clear dots
+// - Hold mouse button: circle turns red
+// - Keyboard events print to console
+
+import java.util.ArrayList;
+
+ArrayList<float[]> dots = new ArrayList<>();
+
+void setup() {
+    size(800, 600);
+    strokeWeight(1);
+}
+
+void draw() {
+    background(25);
+
+    // Saved dots
+    noStroke();
+    fill(180, 120, 255);
+    for (float[] d : dots)
+        ellipse(d[0], d[1], 16, 16);
+
+    // Cursor circle
+    if (mousePressed) fill(255, 80, 80);
+    else              fill(80, 200, 255);
+    noStroke();
+    ellipse(mouseX, mouseY, 40, 40);
+
+    // Cross-hair lines through cursor
+    stroke(80);
+    line(mouseX, 0, mouseX, height);
+    line(0, mouseY, width, mouseY);
+}
+
+void mousePressed() {
+    if (dots.size() >= 64) dots.remove(0);
+    dots.add(new float[]{mouseX, mouseY});
+    System.out.println("Clicked at " + (int)mouseX + ", " + (int)mouseY);
+}
+
+void keyPressed() {
+    System.out.println("Key: '" + key + "'  code: " + keyCode);
+    if (key == 'c' || key == 'C') dots.clear();
+}

@@ -1,0 +1,14 @@
+void setup() {
+    size(800, 600);
+}
+
+void draw() {
+    background(30);
+    fill(255, 80, 80);
+    noStroke();
+    ellipse(mouseX, mouseY, 60, 60);
+}
+
+void mousePressed() {
+    System.out.println("Mouse pressed at " + mouseX + " " + mouseY);
+}
