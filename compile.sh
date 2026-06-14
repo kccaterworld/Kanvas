@@ -24,7 +24,7 @@ if [[ ${#JAVA_SOURCES[@]} -eq 0 ]]; then
   exit 1
 fi
 
-javac --release 21 -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
+javac --release 22 -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
 
 cp -r src/kanvas/assets "$CLASSES_DIR/kanvas/"
 
