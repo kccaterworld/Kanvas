@@ -1,4 +1,4 @@
-package kanvas.runtime;
+package kanvas.gui;
 
 import java.awt.*;
 import java.awt.event.*;

@@ -1,14 +1,18 @@
-package kanvas.runtime;
+package kanvas.gui;
 
 import kanvas.libs.math.KVector;
-import kanvas.libs.graphics.KanvasGraphics;
+import kanvas.runtime.KanvasStdlib;
 
 import java.awt.*;
 import javax.swing.SwingUtilities;
 
-enum DrawMode { CORNER, CORNERS, RADIUS, CENTER }
-
 public abstract class KanvasScript extends KanvasStdlib {
+    // DrawMode constants — exposed so .kvs files can write CORNER, CENTER, etc. directly
+    public static final DrawMode CORNER  = DrawMode.CORNER;
+    public static final DrawMode CORNERS = DrawMode.CORNERS;
+    public static final DrawMode CENTER  = DrawMode.CENTER;
+    public static final DrawMode RADIUS  = DrawMode.RADIUS;
+
     // Package-private: accessed by KanvasWindow
     int bgColor = color(255);
     volatile boolean loop = true;
@@ -221,12 +225,13 @@ public abstract class KanvasScript extends KanvasStdlib {
     }
 
     private static float[] resolveToCorner(float x, float y, float w, float h, DrawMode mode) {
-        return switch (mode) {
-            case CORNER -> new float[]{x, y, w, h};
-            case CORNERS -> new float[]{x, y, w - x, h - y};
-            case CENTER -> new float[]{x - w / 2, y - h / 2, w, h};
-            case RADIUS -> new float[]{x - w, y - h, w * 2, h * 2};
-        };
+        switch (mode) {
+            case CORNER:  return new float[]{x, y, w, h};
+            case CORNERS: return  new float[]{x, y, w - x, h - y};
+            case CENTER:  return new float[]{x - w / 2, y - h / 2, w, h};
+            case RADIUS:  return new float[]{x - w, y - h, w * 2, h * 2};
+            default: throw new IllegalStateException("Unexpected DrawMode: " + mode);
+        }
     }
 
     protected void imageMode(DrawMode mode) { this.imageMode = mode; }

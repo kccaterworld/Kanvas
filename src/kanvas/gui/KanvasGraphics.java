@@ -1,6 +1,4 @@
-package kanvas.libs.graphics;
-
-import kanvas.runtime.KanvasScript;
+package kanvas.gui;
 
 import java.awt.*;
 
@@ -39,7 +37,8 @@ public class KanvasGraphics {
     public void point(float x, float y) {
         if (!sketch.stroke) return;
         graphics2D.setColor(strokeColor());
-        graphics2D.fillRect((int)x, (int)y, 1, 1);
+        int d = Math.max(1, Math.round(sketch.strokeWeight));
+        graphics2D.fillOval((int)(x - d / 2f), (int)(y - d / 2f), d, d);
     }
     public void triangle(float x1, float y1, float x2, float y2, float x3, float y3) {
         int[] xs = {(int)x1, (int)x2, (int)x3};

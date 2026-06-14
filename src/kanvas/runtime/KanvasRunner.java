@@ -1,6 +1,7 @@
 package kanvas.runtime;
 
 import kanvas.config.*;
+import kanvas.gui.KanvasScript;
 import kanvas.KanvasException;
 import kanvas.builder.BuildManager;
 
