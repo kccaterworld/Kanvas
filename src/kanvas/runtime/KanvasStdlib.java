@@ -26,5 +26,4 @@ public class KanvasStdlib {
         System.out.printf(format, args);
     }
 
-    
 }
