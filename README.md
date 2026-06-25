@@ -21,6 +21,7 @@ Kanvas is officially in alpha stage, which is a big milestone for me, but users 
 - [ ] Math libraries
 - [ ] GPU acceleration (maybe)
 - [ ] Proper test suite and CI workflow
+- [ ] Bootstrapping
 - [ ] `DependencyResolver` to auto-download JARs from Maven Central
 - [ ] Dependency management and integration
 - [ ] Fully custom build system
