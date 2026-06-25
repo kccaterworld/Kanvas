@@ -12,6 +12,7 @@ import javax.tools.*;
  * fah
  */
 public class CompileTool {
+    public static void compile(Path source, Path outputDir) throws Exception { compile(source, outputDir, null); }
     public static void compile(Path source, Path outputDir, List<Path> classpath) throws Exception {
         if (!checkCanRun()) throw new KanvasCompileException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -22,19 +23,12 @@ public class CompileTool {
             args.add("-cp");
             args.add(classpath.stream()
                 .map(p -> p.toAbsolutePath().toString())
-                .reduce((a, b) -> a + java.io.File.pathSeparator + b)
-                .get());
+                .reduce((a, b) -> a + java.io.File.pathSeparator + b).get());
         }
         args.add(source.toAbsolutePath().toString());
         boolean status = 0 == compiler.run(null, null, null, args.toArray(new String[0]));
         if (!status) throw new KanvasCompileException("Compilation failed for " + source);
     }
+    public static boolean checkCanRun() { return ToolProvider.getSystemJavaCompiler() != null; }
 
-    public static void compile(Path source, Path outputDir) throws Exception {
-        compile(source, outputDir, null);
-    }
-
-    public static boolean checkCanRun() {
-        return ToolProvider.getSystemJavaCompiler() != null;
-    }
 }

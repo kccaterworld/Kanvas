@@ -7,13 +7,12 @@ import java.awt.*;
 import javax.swing.SwingUtilities;
 
 public abstract class KanvasScript extends KanvasStdlib {
-    // DrawMode constants so .kvs files can write CORNER, CENTER, etc. directly
+    // DrawMode constants so .kvs files can write CORNER, CENTER, and allat directly
     public static final DrawMode CORNER = DrawMode.CORNER;
     public static final DrawMode CORNERS = DrawMode.CORNERS;
     public static final DrawMode CENTER  = DrawMode.CENTER;
     public static final DrawMode RADIUS  = DrawMode.RADIUS;
 
-    // Package-private: accessed by KanvasWindow
     int bgColor = color(255);
     volatile boolean loop = true;
     boolean resizable = false;
@@ -23,7 +22,6 @@ public abstract class KanvasScript extends KanvasStdlib {
         imageMode = DrawMode.CORNER,
         shapeMode = DrawMode.CORNER;
 
-    // Public: read by KanvasGraphics (kanvas.libs.graphics); setters are the API
     public int fillColor = color(0);
     public int strokeColor = color(0);
     public boolean fill = true;
@@ -58,7 +56,7 @@ public abstract class KanvasScript extends KanvasStdlib {
     protected final float QUARTER_PI = (float)(Math.PI / 4);
     protected final float TWO_PI = (float)(2 * Math.PI);
 
-    // Entry point — called from generated main()
+    // Entry point called from generated main method
     public final void start() {
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         displayWidth = screen.width;
@@ -69,8 +67,7 @@ public abstract class KanvasScript extends KanvasStdlib {
         graphics = new KanvasGraphics(this);
 
         try { SwingUtilities.invokeAndWait(window::open);
-        } catch (Exception e) { throw new RuntimeException("Failed to create window", e);
-        }
+        } catch (Exception e) { throw new RuntimeException("Failed to create window", e); }
 
         Graphics2D setupG2d = window.acquireGraphics();
         graphics.setContext(setupG2d);
@@ -82,8 +79,7 @@ public abstract class KanvasScript extends KanvasStdlib {
         renderThread.start();
 
         try { window.awaitShutdown();
-        } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage());
-        }
+        } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage()); }
     }
 
     private void renderLoop() {

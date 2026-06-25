@@ -49,23 +49,23 @@ public class KImage {
     public void filter(filterMode mode, float param) { }
     public KImage copy() { return new KImage(pixels.clone(), width, height); }
     public static void copy(KImage src, int sourceX, int sourceY, int sourceW, int sourceH,
-                            int destX, int destY, int destW, int destH) {
+        int destX, int destY, int destW, int destH) {
         src.copy(sourceX, sourceY, sourceW, sourceH, destX, destY, destW, destH);
     }
     public KImage copy(int sourceX, int sourceY, int sourceW, int sourceH,
-                        int destX, int destY, int destW, int destH) {
+        int destX, int destY, int destW, int destH) {
         return null;
     }
     public void blendColor(int color1, int color2, blendMode mode) {
 
     }
     public static void blend(KImage src, blendMode mode,
-                            int sourceX, int sourceY, int sourceW, int sourceH,
-                            int destX, int destY, int destW, int destH) {
+        int sourceX, int sourceY, int sourceW, int sourceH,
+        int destX, int destY, int destW, int destH) {
         src.blendColor(sourceX, sourceY, mode);
     }
     public void blend(blendMode mode, int sourceX, int sourceY, int sourceW, int sourceH,
-                        int destX, int destY, int destW, int destH) {
+        int destX, int destY, int destW, int destH) {
     
     }
     public void save(String filePath) { save(Path.of(filePath)); }

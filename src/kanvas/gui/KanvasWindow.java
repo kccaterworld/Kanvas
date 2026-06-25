@@ -142,4 +142,17 @@ class KanvasWindow {
 
     void setTitle(String title) { if (frame != null) frame.setTitle(title); }
     void setResizable(boolean resizable) { if (frame != null) frame.setResizable(resizable); }
+
+    void setLocation(int x, int y) {
+        if (frame == null) return;
+        SwingUtilities.invokeLater(() -> frame.setLocation(x, y));
+    }
+
+    void moveBy(int dx, int dy) {
+        if (frame == null) return;
+        SwingUtilities.invokeLater(() -> {
+            Point p = frame.getLocationOnScreen();
+            frame.setLocation(p.x + dx, p.y + dy);
+        });
+    }
 }

@@ -17,8 +17,7 @@ public class KanvasInstaller {
             Files.createDirectories(dir);
             if (isWindows) installWindows(dir, jarPath);
             else installUnix(dir, jarPath);
-        } catch (IOException e) { throw new KanvasException("Install failed: " + e.getMessage(), e);
-        }
+        } catch (IOException e) { throw new KanvasException("Install failed: " + e.getMessage(), e); }
         System.out.println(Text.style("Installed kanvas to: " + dir.toAbsolutePath(), "green"));
         printPathInstructions(dir, isWindows);
     }
