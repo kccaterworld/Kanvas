@@ -7,8 +7,8 @@ import java.awt.*;
 import javax.swing.SwingUtilities;
 
 public abstract class KanvasScript extends KanvasStdlib {
-    // DrawMode constants — exposed so .kvs files can write CORNER, CENTER, etc. directly
-    public static final DrawMode CORNER  = DrawMode.CORNER;
+    // DrawMode constants so .kvs files can write CORNER, CENTER, etc. directly
+    public static final DrawMode CORNER = DrawMode.CORNER;
     public static final DrawMode CORNERS = DrawMode.CORNERS;
     public static final DrawMode CENTER  = DrawMode.CENTER;
     public static final DrawMode RADIUS  = DrawMode.RADIUS;
@@ -53,9 +53,9 @@ public abstract class KanvasScript extends KanvasStdlib {
     protected volatile int keyCode;
 
     // Constants
-    protected final float PI = (float)Math.PI;
-    protected final float HALF_PI = (float)Math.PI / 2;
-    protected final float QUARTER_PI = (float)Math.PI / 4;
+    protected final float PI = (float)(Math.PI);
+    protected final float HALF_PI = (float)(Math.PI / 2);
+    protected final float QUARTER_PI = (float)(Math.PI / 4);
     protected final float TWO_PI = (float)(2 * Math.PI);
 
     // Entry point — called from generated main()
@@ -156,7 +156,10 @@ public abstract class KanvasScript extends KanvasStdlib {
     public void keyTyped() {}
     public void windowMoved() {}
 
-    public void setLocation(float x, float y) { this.location.set(x, y); }
+    public void setLocation(float x, float y) {
+        if (window != null) SwingUtilities.invokeLater(() -> window.setLocation((int)x, (int)y));
+        this.location.set(x, y);
+    }
     public void setResizable(boolean resizable) {
         this.resizable = resizable;
         if (window != null) SwingUtilities.invokeLater(() -> window.setResizable(resizable));
