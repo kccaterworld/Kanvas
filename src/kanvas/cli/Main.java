@@ -1,19 +1,23 @@
 package kanvas.cli;
 
+import kanvas.KanvasException;
 import kanvas.config.ConfigLoader;
 import kanvas.project.ProjectCreator;
 import kanvas.builder.BuildManager;
 import kanvas.runtime.KanvasRunner;
-import kanvas.KanvasException;
+import kanvas.libs.math.KVector2;
 
 import java.util.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.*;
+import java.lang.invoke.*;
 
 public class Main {
     public static void main(String[] args) throws KanvasException {
+        System.out.println(getTerminalSize().toString());
         if (args.length == 0) {
             KanvasInstaller.install(null);
             System.out.print(Text.buildAnsi("clear", "home"));
@@ -36,8 +40,7 @@ public class Main {
             case "create": {
                 if (args.length < 2) throw new IllegalArgumentException("Usage: kanvas create <name> [--type <template>]");
                 String type = "kanvas-sketch";
-                for (int i = 2; i < args.length; i++)
-                    if ("--type".equals(args[i]) && i + 1 < args.length) type = args[++i];
+                for (int i = 2; i < args.length; i++) if ("--type".equals(args[i]) && i + 1 < args.length) type = args[++i];
                 ProjectCreator.createProject(args[1], templateName(type), ".");
                 break;
             }
@@ -75,14 +78,14 @@ public class Main {
     }
 
     private static String templateName(String type) {
-        switch (type) {
-            case "1": return "kanvas-sketch";
-            case "2": return "java-app";
-            case "3": return "java-lib";
-            case "4": return "mixed-project";
-            case "5": return "empty";
-            default: return type;
-        }
+        return switch (type) {
+            case "1" -> "kanvas-sketch";
+            case "2" -> "java-app";
+            case "3" -> "java-lib";
+            case "4" -> "mixed-project";
+            case "5" -> "empty";
+            default -> type;
+        };
     }
 
     private static Map<String, String> parseOverrides(String[] args, int start) {
@@ -129,5 +132,42 @@ public class Main {
             if (helpStream != null) System.out.println(new String(helpStream.readAllBytes(), StandardCharsets.UTF_8));
             else System.out.println(Files.readString(Paths.get("kanvas", "assets", "text", "help.txt"), StandardCharsets.UTF_8));
         } catch (IOException e) { throw new RuntimeException("Failed to read help.txt", e); }
+    }
+
+    public static KVector2 getTerminalSize() {
+        try {
+            if (System.getProperty("os.name").toLowerCase().contains("win")) { // Check if the os is windows
+                try (Arena arena = Arena.ofConfined()) {
+                    Linker linker = Linker.nativeLinker();
+                    SymbolLookup kernel32 = SymbolLookup.libraryLookup("kernel32", arena);
+                    MethodHandle getStdHandle = linker.downcallHandle(kernel32.find("GetStdHandle").get(),
+                        FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+                    MethodHandle getConsoleScreenBufferInfo = linker.downcallHandle(kernel32.find("GetConsoleScreenBufferInfo").get(),
+                        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+                    MemorySegment handle     = (MemorySegment) getStdHandle.invoke(-11);
+                    MemorySegment bufferInfo = arena.allocate(22); // sizeof(CONSOLE_SCREEN_BUFFER_INFO)
+                    int success = (int) getConsoleScreenBufferInfo.invoke(handle, bufferInfo);
+                    if (success != 0) {
+                        short left = bufferInfo.get(ValueLayout.JAVA_SHORT, 10);
+                        short top = bufferInfo.get(ValueLayout.JAVA_SHORT, 12);
+                        short right = bufferInfo.get(ValueLayout.JAVA_SHORT, 14);
+                        short bottom = bufferInfo.get(ValueLayout.JAVA_SHORT, 16);
+                        return new KVector2((right - left) + 1, (bottom - top) + 1);
+                    }
+                }
+                return new KVector2(80, 24);
+            } else { // Otherwise assume Unix
+                try {
+                    Process p = new ProcessBuilder("sh", "-c", "stty size < /dev/tty").start();
+                    try (java.util.Scanner sc = new java.util.Scanner(p.getInputStream())) {
+                        if (sc.hasNextLine()) {
+                            String[] splitLine = sc.nextLine().trim().split("\\s+");
+                            return new KVector2(Integer.parseInt(splitLine[1]), Integer.parseInt(splitLine[0]));
+                        }
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+                return new KVector2(80, 24);
+            }
+        } catch (Throwable t) { return new KVector2(80, 24); }
     }
 }
