@@ -38,6 +38,32 @@ public class KanvasRunner {
         if (exitCode != 0) throw new KanvasException("Application exited with non-zero exit code: " + exitCode);
     }
 
+    /** Build and launch without blocking — sketch runs alongside the caller. */
+    public static Process launch(Path configPath) throws KanvasException {
+        BuildManager buildManager = new BuildManager(configPath);
+        Config config = buildManager.getConfig();
+        buildManager.build();
+        String mainClass = config.getMainClass();
+        if (mainClass == null || mainClass.isBlank())
+            throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
+
+        String sketchClasses = config.getOutput().toPath().resolve("classes").toAbsolutePath().toString();
+        String runtimeClasses = runtimeClasspath();
+        String classpath = runtimeClasses.isEmpty()
+            ? sketchClasses
+            : sketchClasses + File.pathSeparator + runtimeClasses;
+        String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
+
+        try {
+            return new ProcessBuilder("java", "-cp", classpath, resolvedClass)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start();
+        } catch (IOException e) {
+            throw new KanvasException("Failed to start the application process: " + e.getMessage(), e);
+        }
+    }
+
     // Finds the JAR or class directory that contains the Kanvas runtime classes.
     private static String runtimeClasspath() {
         try {
