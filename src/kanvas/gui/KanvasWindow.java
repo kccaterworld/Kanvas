@@ -15,11 +15,11 @@ class KanvasWindow {
     private volatile boolean running = true;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
-    KanvasWindow(KanvasScript sketch) {
+    public KanvasWindow(KanvasScript sketch) {
         this.sketch = sketch;
     }
 
-    void open() {
+    public void open() {
         canvas = new Canvas();
         canvas.setPreferredSize(new Dimension((int)sketch.width, (int)sketch.height));
         canvas.setIgnoreRepaint(true);
@@ -43,39 +43,47 @@ class KanvasWindow {
                 shutdownLatch.countDown();
                 System.exit(0);
             }
-            @Override public void windowGainedFocus(WindowEvent e) {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
                 sketch.focused = true;
             }
-            @Override public void windowLostFocus(WindowEvent e) {
+            @Override
+            public void windowLostFocus(WindowEvent e) {
                 sketch.focused = false;
             }
         });
 
         frame.addComponentListener(new ComponentAdapter() {
-            @Override public void componentMoved(ComponentEvent e) {
+            @Override
+            public void componentMoved(ComponentEvent e) {
                 sketch.windowMoved();
             }
         });
 
         canvas.addMouseListener(new MouseAdapter() {
-            @Override public void mousePressed(MouseEvent e) {
+            @Override
+            public void mousePressed(MouseEvent e) {
                 sketch.mousePressed = true;
                 sketch.mousePressed();
             }
-            @Override public void mouseReleased(MouseEvent e) {
+            @Override
+            public void mouseReleased(MouseEvent e) {
                 sketch.mousePressed = false;
                 sketch.mouseReleased();
             }
-            @Override public void mouseClicked(MouseEvent e) {
+            @Override
+            public void mouseClicked(MouseEvent e) {
                 sketch.mouseClicked();
             }
         });
 
         canvas.addMouseMotionListener(new MouseAdapter() {
-            @Override public void mouseMoved(MouseEvent e) {
+            @Override
+            public void mouseMoved(MouseEvent e) {
                 sketch.mouseMoved(e.getX(), e.getY());
             }
-            @Override public void mouseDragged(MouseEvent e) {
+            @Override
+            public void mouseDragged(MouseEvent e) {
                 sketch.pmouseX = sketch.mouseX;
                 sketch.pmouseY = sketch.mouseY;
                 sketch.mouseX = e.getX();
@@ -87,17 +95,20 @@ class KanvasWindow {
         canvas.addMouseWheelListener((MouseWheelEvent e) -> sketch.mouseWheel());
 
         canvas.addKeyListener(new KeyAdapter() {
-            @Override public void keyPressed(KeyEvent e) {
+            @Override
+            public void keyPressed(KeyEvent e) {
                 sketch.key = e.getKeyChar();
                 sketch.keyCode = e.getKeyCode();
                 sketch.keyPressed();
             }
-            @Override public void keyReleased(KeyEvent e) {
+            @Override
+            public void keyReleased(KeyEvent e) {
                 sketch.key = e.getKeyChar();
                 sketch.keyCode = e.getKeyCode();
                 sketch.keyReleased();
             }
-            @Override public void keyTyped(KeyEvent e) {
+            @Override
+            public void keyTyped(KeyEvent e) {
                 sketch.key = e.getKeyChar();
                 sketch.keyTyped();
             }
