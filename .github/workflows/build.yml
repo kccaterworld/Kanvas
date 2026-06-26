@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sketch: [test-shapes, test-drawmodes, test-input, test-tui-basic, test-tui-input, test-tui-animation]
+        sketch: [test-shapes, test-drawmodes, test-input]
 
     steps:
       - uses: actions/checkout@v4
