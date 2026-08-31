@@ -1,0 +1,91 @@
+/**
+ * Particle System - Phase 1 Feature Showcase
+ * 
+ * Demonstrates:
+ * - random() and randomSeed() for reproducible randomness
+ * - dist() for distance calculations between particles
+ * - lerpColor() for color transitions
+ * - ArrayList and particle data management
+ *
+ * Note: Uses arrays instead of classes due to preprocessor limitations
+ */
+
+import java.util.ArrayList;
+
+ArrayList<float[]> particles;
+double gravity = 0.1;
+
+void setup() {
+    size(800, 600);
+    smooth();
+    particles = new ArrayList<float[]>();
+    randomSeed(42); // For reproducibility
+}
+
+void draw() {
+    background(30);
+    
+    // Update and display particles
+    for (int i = particles.size() - 1; i >= 0; i--) {
+        float[] p = particles.get(i);
+        // Update particle: x, y, vx, vy, life
+        p[0] += p[2]; // x += vx
+        p[1] += p[3]; // y += vy
+        p[3] += gravity; // vy += gravity
+        p[4] -= 5; // life -= 5
+        
+        // Display particle
+        displayParticle(p);
+        
+        // Remove dead particles
+        if (p[4] <= 0) {
+            particles.remove(i);
+        }
+    }
+    
+    // Emit new particles from mouse
+    for (int i = 0; i < 3; i++) {
+        particles.add(createParticle(mouseX, mouseY));
+    }
+    
+    // Check inter-particle distances for interesting effects
+    for (int i = 0; i < particles.size(); i++) {
+        for (int j = i + 1; j < particles.size(); j++) {
+            float[] p1 = particles.get(i);
+            float[] p2 = particles.get(j);
+            double d = dist(p1[0], p1[1], p2[0], p2[1]);
+            
+            // Draw connections between nearby particles
+            if (d < 50) {
+                stroke(255, 100, 100);
+                strokeWeight(1);
+                line(p1[0], p1[1], p2[0], p2[1]);
+            }
+        }
+    }
+    
+    // Display count
+    fill(255);
+    noStroke();
+    println("Particles: " + particles.size() + " | FPS: " + (int)frameRate);
+}
+
+float[] createParticle(double x, double y) {
+    // Store as: x, y, vx, vy, life
+    float[] p = new float[5];
+    p[0] = (float) x;
+    p[1] = (float) y;
+    p[2] = (float) random(-2, 2); // vx
+    p[3] = (float) random(-5, -2); // vy
+    p[4] = 255; // life
+    return p;
+}
+
+void displayParticle(float[] p) {
+    double lifePercent = p[4] / 255.0;
+    // Lerp between colors based on life
+    int col = lerpColor(color(100, 50, 50), color(255, 200, 100), (float) lifePercent);
+    fill(col);
+    noStroke();
+    circle(p[0], p[1], (float) (10 * lifePercent));
+}

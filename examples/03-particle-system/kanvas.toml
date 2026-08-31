@@ -1,0 +1,21 @@
+name = "particle-system"
+version = "1.0.0"
+author = "Kanvas"
+description = "Simple particle system with physics simulation using vectors and transforms"
+mainClass = "Main"
+
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "11"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "particle-system.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]

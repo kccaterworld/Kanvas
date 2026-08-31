@@ -1,0 +1,21 @@
+name = "generative-tree"
+version = "1.0.0"
+author = "Kanvas"
+description = "Recursive tree generation using noise and matrix transforms"
+mainClass = "Main"
+
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "11"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "generative-tree.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]

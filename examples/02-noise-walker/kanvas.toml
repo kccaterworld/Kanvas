@@ -1,0 +1,21 @@
+name = "noise-walker"
+version = "1.0.0"
+author = "Kanvas"
+description = "Organic motion using Perlin noise for smooth, natural-looking movement"
+mainClass = "Main"
+
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "11"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "noise-walker.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]

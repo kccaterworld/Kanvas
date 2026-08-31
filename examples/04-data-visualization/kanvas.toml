@@ -1,0 +1,21 @@
+name = "data-visualization"
+version = "1.0.0"
+author = "Kanvas"
+description = "Data visualization using custom shapes and mathematical transformations"
+mainClass = "Main"
+
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "11"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "data-visualization.jar"
+version = "0.1.0"
+nativeTargets = ["windows", "macos", "linux"]

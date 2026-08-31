@@ -1,0 +1,150 @@
+/**
+ * Data Visualization - Phase 2 Feature Showcase
+ * 
+ * Demonstrates:
+ * - beginShape() / vertex() / endShape() for custom shapes
+ * - map() for scaling data to screen coordinates
+ * - sin() for smooth wave visualization
+ * - Trig functions for polar coordinate plotting
+ */
+
+void setup() {
+    size(900, 700);
+    smooth();
+}
+
+void draw() {
+    background(245);
+    
+    // Draw several visualizations
+    drawSineWave();
+    drawPolarPlot();
+    drawHistogram();
+    drawScatterPlot();
+}
+
+void drawSineWave() {
+    double offsetX = 50;
+    double offsetY = 120;
+    double graphWidth = 300;
+    double graphHeight = 100;
+    
+    // Draw axes
+    stroke(0);
+    strokeWeight(1);
+    line((float)offsetX, (float)offsetY, (float)(offsetX + graphWidth), (float)offsetY);
+    line((float)offsetX, (float)offsetY, (float)offsetX, (float)(offsetY - graphHeight));
+    
+    // Draw sine wave
+    stroke(100, 150, 255);
+    strokeWeight(2);
+    beginShape();
+    for (int i = 0; i < graphWidth; i++) {
+        double x = offsetX + i;
+        double angle = map(i, 0, graphWidth, 0, TWO_PI * 2);
+        double y = offsetY - graphHeight * 0.5 * (sin(angle) * 0.5 + 0.5);
+        vertex((float)x, (float)y);
+    }
+    endShape();
+    
+    // Label
+    fill(0);
+    noStroke();
+}
+
+void drawPolarPlot() {
+    double centerX = width * 0.75;
+    double centerY = 120;
+    double radius = 80;
+    
+    // Draw polar grid
+    stroke(200);
+    strokeWeight(1);
+    for (int i = 0; i < 3; i++) {
+        double r = radius * (i + 1) / 3;
+        drawCircle((float)centerX, (float)centerY, (float)r);
+    }
+    
+    // Draw angles
+    stroke(220);
+    for (int a = 0; a < 360; a += 30) {
+        double angle = radians(a);
+        double x2 = centerX + cos(angle) * radius;
+        double y2 = centerY + sin(angle) * radius;
+        line((float)centerX, (float)centerY, (float)x2, (float)y2);
+    }
+    
+    // Draw data spiral using sin
+    stroke(255, 100, 100);
+    strokeWeight(2);
+    beginShape();
+    for (int a = 0; a < 360 * 3; a += 5) {
+        double angle = radians(a);
+        double r = radius * (a / 1080.0) * (0.5 + 0.5 * sin(a * 0.02));
+        double x = centerX + cos(angle) * r;
+        double y = centerY + sin(angle) * r;
+        vertex((float)x, (float)y);
+    }
+    endShape();
+}
+
+void drawHistogram() {
+    double offsetX = 50;
+    double offsetY = 350;
+    double barWidth = 15;
+    double graphHeight = 120;
+    
+    stroke(0);
+    strokeWeight(1);
+    line((float)offsetX, (float)offsetY, (float)(offsetX + 320), (float)offsetY);
+    
+    fill(100, 200, 100);
+    stroke(50, 150, 50);
+    strokeWeight(1);
+    
+    // Draw bars based on sin values
+    for (int i = 0; i < 20; i++) {
+        double angle = map(i, 0, 20, 0, PI);
+        double height = sin(angle) * graphHeight;
+        double x = offsetX + i * barWidth;
+        double y = offsetY;
+        
+        rect((float)x, (float)(y - height), (float)(barWidth - 2), (float)height);
+    }
+}
+
+void drawScatterPlot() {
+    double offsetX = 350;
+    double offsetY = 350;
+    double graphWidth = 250;
+    double graphHeight = 200;
+    
+    // Draw axes
+    stroke(0);
+    strokeWeight(1);
+    line((float)offsetX, (float)offsetY, (float)(offsetX + graphWidth), (float)offsetY);
+    line((float)offsetX, (float)offsetY, (float)offsetX, (float)(offsetY - graphHeight));
+    
+    // Generate and plot data points using cos/sin
+    fill(255, 100, 100);
+    stroke(200, 50, 50);
+    strokeWeight(1);
+    
+    for (int i = 0; i < 100; i++) {
+        double angle = map(i, 0, 100, 0, TWO_PI);
+        double x = graphWidth * 0.5 * (0.5 + 0.4 * cos(angle * 2));
+        double y = graphHeight * 0.5 * (0.5 + 0.4 * sin(angle * 2));
+        circle((float)(offsetX + x), (float)(offsetY - y), 4);
+    }
+}
+
+void drawCircle(float cx, float cy, float r) {
+    beginShape();
+    for (int a = 0; a < 360; a += 10) {
+        double angle = radians(a);
+        double x = cx + cos(angle) * r;
+        double y = cy + sin(angle) * r;
+        vertex((float)x, (float)y);
+    }
+    endShape(CLOSE);
+}

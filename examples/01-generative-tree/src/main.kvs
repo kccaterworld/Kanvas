@@ -1,0 +1,72 @@
+/**
+ * Generative Tree - Phase 1 & 2 Feature Showcase
+ * 
+ * Demonstrates:
+ * - noise() for organic randomness
+ * - Matrix transforms: pushMatrix/popMatrix, translate, rotate, scale
+ * - Recursive structure creation
+ */
+
+double rotation;
+double scale;
+
+void setup() {
+    size(800, 600);
+    smooth();
+    background(240);
+}
+
+void draw() {
+    background(240);
+    
+    stroke(40);
+    strokeWeight(2);
+    fill(100, 180, 80);
+    
+    // Translate to bottom center
+    pushMatrix();
+    translate(width / 2, height - 50);
+    
+    // Rotate slightly for visual interest
+    rotation = noise(frameCount * 0.005 - 100) * 0.3 - 0.15;
+    rotate((float) rotation);
+    
+    // Draw tree with recursion
+    drawBranch(80, 0);
+    
+    popMatrix();
+}
+
+void drawBranch(float length, float depth) {
+    // Stop condition
+    if (length < 2 || depth > 12) return;
+    
+    // Draw branch
+    line(0, 0, 0, -length);
+    
+    // Move to end of branch
+    translate(0, -length);
+    
+    // Left branch
+    pushMatrix();
+    double leftAngle = noise(depth * 0.3, frameCount * 0.005) * PI / 2 - PI / 4;
+    rotate((float) leftAngle);
+    double leftScale = 0.7 + noise(depth * 0.2) * 0.2;
+    drawBranch((float) (length * leftScale), depth + 1);
+    popMatrix();
+    
+    // Right branch
+    pushMatrix();
+    double rightAngle = -noise(depth * 0.3 + 100, frameCount * 0.005) * PI / 2 + PI / 4;
+    rotate((float) rightAngle);
+    double rightScale = 0.7 + noise(depth * 0.2 + 50) * 0.2;
+    drawBranch((float) (length * rightScale), depth + 1);
+    popMatrix();
+    
+    // Straight continuation
+    pushMatrix();
+    double contAngle = noise(depth * 0.2, frameCount * 0.008) * 0.4 - 0.2;
+    rotate((float) contAngle);
+    drawBranch((float)(length * 0.8), depth + 1);
+    popMatrix();
+}
