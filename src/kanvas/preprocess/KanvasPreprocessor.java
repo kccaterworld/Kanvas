@@ -2,6 +2,7 @@ package kanvas.preprocess;
 
 import kanvas.config.*;
 import kanvas.KanvasException;
+import kanvas.preprocess.source.PreprocessException;
 
 import java.io.File;
 import java.nio.file.*;
@@ -9,11 +10,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.*;
 
+/** Transpiles every .kvs file in a project's source directories into {@code <output>/generated}. */
 public class KanvasPreprocessor {
-    private static final String GENERATED_PACKAGE = Preprocessor1.DEFAULT_PACKAGE;
+    // Declared packages are ignored for now: every sketch class lands in kanvas.generated
+    // (honoring them is Phase 3 of the realignment plan).
+    private static final String GENERATED_PACKAGE = Preprocessor.DEFAULT_PACKAGE;
 
     public static List<Path> preprocess(File configFile) throws KanvasException {
         Config config = ConfigLoader.loadConfig(configFile);
+        Path projectDir = configFile.getAbsoluteFile().toPath().getParent();
         Path generatedDir = config.getOutput().toPath()
             .resolve("generated")
             .resolve(GENERATED_PACKAGE.replace('.', File.separatorChar));
@@ -30,20 +35,35 @@ public class KanvasPreprocessor {
         }
         List<Path> generatedJavaFiles = new ArrayList<>();
         for (File kvsFile : kvsFiles) {
-            String generatedJavaFile = new Preprocessor1(kvsFile).transpile();
+            String className = Preprocessor.classNameFor(kvsFile.getName().replaceFirst("[.][^.]+$", ""));
+            String generatedJavaFile = transpile(kvsFile, className, projectDir);
             if (!generatedDir.toFile().exists()) {
                 try { Files.createDirectories(generatedDir); }
                 catch (Exception e) { throw new KanvasException("Error occurred while creating output directory: " + generatedDir, e); }
             }
+            Path target = generatedDir.resolve(className + ".java");
             try {
-                Files.writeString(generatedDir.resolve(getName(kvsFile)), generatedJavaFile);
-                generatedJavaFiles.add(generatedDir.resolve(getName(kvsFile)));
-            } catch (Exception e) { throw new KanvasException("Error occurred while writing generated file: " + generatedDir.resolve(getName(kvsFile)), e); }
+                Files.writeString(target, generatedJavaFile);
+                generatedJavaFiles.add(target);
+            } catch (Exception e) { throw new KanvasException("Error occurred while writing generated file: " + target, e); }
         }
         return generatedJavaFiles;
     }
 
-    private static String getName(File kvsFile) {
-        return Preprocessor1.classNameFor(kvsFile.getName().replaceFirst("[.][^.]+$", "")) + ".java";
+    /** Transpiles one file, reporting errors as {@code src/main.kvs:12:8: message}. */
+    private static String transpile(File kvsFile, String className, Path projectDir) throws KanvasException {
+        String displayPath = displayPath(kvsFile, projectDir);
+        String source;
+        try { source = Files.readString(kvsFile.toPath()); }
+        catch (Exception e) { throw new KanvasException("Failed to read " + displayPath, e); }
+        try { return Preprocessor.transpile(source, GENERATED_PACKAGE, className); }
+        catch (PreprocessException e) { throw new KanvasException(displayPath + ":" + e.pos() + ": " + e.detail(), e); }
+    }
+
+    /** The path relative to the project directory, with forward slashes. */
+    private static String displayPath(File file, Path projectDir) {
+        Path path = file.getAbsoluteFile().toPath();
+        if (projectDir != null && path.startsWith(projectDir)) path = projectDir.relativize(path);
+        return path.toString().replace(File.separatorChar, '/');
     }
 }

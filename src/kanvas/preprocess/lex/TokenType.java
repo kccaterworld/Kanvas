@@ -1,0 +1,9 @@
+package kanvas.preprocess.lex;
+
+public enum TokenType {
+    KEYWORD, IDENTIFIER,
+    INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, TEXT_BLOCK, CHAR_LITERAL,
+    OPERATOR, PUNCTUATION,
+    LINE_COMMENT, BLOCK_COMMENT,
+    EOF
+}
