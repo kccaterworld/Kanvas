@@ -26,9 +26,12 @@ public class KanvasRunner {
         // Shorter stuff like "Main" resolves to "kanvas.generated.Main"
         String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
 
+        // Let KanvasScript.sketchPath() find assets relative to the project root
+        String projectRoot = configPath.toAbsolutePath().getParent().toString();
+
         int exitCode = -1;
         try {
-            exitCode = new ProcessBuilder("java", "-cp", classpath, resolvedClass)
+            exitCode = new ProcessBuilder("java", "-Dkanvas.sketchPath=" + projectRoot, "-cp", classpath, resolvedClass)
                 .inheritIO().start().waitFor();
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e);
         } catch (InterruptedException e) {
@@ -50,7 +53,10 @@ public class KanvasRunner {
         String classpath = runtimeClasses.isEmpty() ? sketchClasses : sketchClasses + File.pathSeparator + runtimeClasses;
         String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
 
-        try { return new ProcessBuilder("java", "-cp", classpath, resolvedClass)
+        // Let KanvasScript.sketchPath() find assets relative to the project root
+        String projectRoot = configPath.toAbsolutePath().getParent().toString();
+
+        try { return new ProcessBuilder("java", "-Dkanvas.sketchPath=" + projectRoot, "-cp", classpath, resolvedClass)
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start();

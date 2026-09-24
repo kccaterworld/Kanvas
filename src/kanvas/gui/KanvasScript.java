@@ -1,9 +1,15 @@
 package kanvas.gui;
 
+import kanvas.KanvasException;
 import kanvas.libs.math.KVector;
 import kanvas.runtime.KanvasStdlib;
 
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Stack;
 import javax.swing.SwingUtilities;
 
 public abstract class KanvasScript extends KanvasStdlib {
@@ -12,6 +18,18 @@ public abstract class KanvasScript extends KanvasStdlib {
     public static final DrawMode CORNERS = DrawMode.CORNERS;
     public static final DrawMode CENTER  = DrawMode.CENTER;
     public static final DrawMode RADIUS  = DrawMode.RADIUS;
+    
+    // Shape building constants
+    public static final int POINTS = 0;
+    public static final int LINES = 1;
+    public static final int TRIANGLES = 2;
+    public static final int TRIANGLE_STRIP = 3;
+    public static final int TRIANGLE_FAN = 4;
+    public static final int QUADS = 5;
+    public static final int QUAD_STRIP = 6;
+    public static final int POLYGON = 7;
+    public static final int OPEN = 8;
+    public static final int CLOSE = 9;
 
     int bgColor = color(255);
     volatile boolean loop = true;
@@ -29,6 +47,10 @@ public abstract class KanvasScript extends KanvasStdlib {
     public float strokeWeight = 1;
     public boolean smoothing = true;
     private KVector location = new KVector(20, 20);
+    
+    // Matrix transformation stack
+    private final Stack<AffineTransform> matrixStack = new Stack<>();
+    private AffineTransform currentTransform = new AffineTransform();
 
     // Runtime references
     KanvasWindow window;
@@ -58,13 +80,17 @@ public abstract class KanvasScript extends KanvasStdlib {
 
     // Entry point called from generated main method
     public final void start() {
+        setGlobal("script", this);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         displayWidth = screen.width;
         displayHeight = screen.height;
         settings();
 
         window = new KanvasWindow(this);
+        setGlobal("window", window);
+
         graphics = new KanvasGraphics(this);
+        setGlobal("graphics", graphics);
 
         try { SwingUtilities.invokeAndWait(window::open);
         } catch (Exception e) { throw new RuntimeException("Failed to create window", e); }
@@ -80,6 +106,7 @@ public abstract class KanvasScript extends KanvasStdlib {
 
         try { window.awaitShutdown();
         } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage()); }
+
     }
 
     private void renderLoop() {
@@ -223,6 +250,47 @@ public abstract class KanvasScript extends KanvasStdlib {
         if (graphics != null) graphics.triangle(x1, y1, x2, y2, x3, y3);
     }
 
+    // ============ Shape Building (beginShape/endShape/vertex) ============
+    
+    /**
+     * Starts building a custom shape. Must be paired with {@link #endShape()}.
+     */
+    protected void beginShape() {
+        if (graphics != null) graphics.beginShape();
+    }
+    
+    /**
+     * Starts building a custom shape with the specified mode.
+     * @param mode the shape mode (POINTS, LINES, TRIANGLES, POLYGON, OPEN, CLOSE)
+     */
+    protected void beginShape(int mode) {
+        if (graphics != null) graphics.beginShape(mode);
+    }
+    
+    /**
+     * Adds a vertex to the current shape.
+     * @param x the x coordinate
+     * @param y the y coordinate
+     */
+    protected void vertex(float x, float y) {
+        if (graphics != null) graphics.vertex(x, y);
+    }
+    
+    /**
+     * Ends the current shape and renders it with optional closure.
+     * @param closeMode CLOSE to connect last vertex to first, OPEN otherwise
+     */
+    protected void endShape(int closeMode) {
+        if (graphics != null) graphics.endShape(closeMode);
+    }
+    
+    /**
+     * Ends the current shape without closure.
+     */
+    protected void endShape() {
+        if (graphics != null) graphics.endShape();
+    }
+
     private static float[] resolveToCorner(float x, float y, float w, float h, DrawMode mode) {
         switch (mode) {
             case CORNER:  return new float[]{x, y, w, h};
@@ -233,37 +301,207 @@ public abstract class KanvasScript extends KanvasStdlib {
         }
     }
 
-    protected void imageMode(DrawMode mode) { this.imageMode = mode; }
-    protected void rectMode(DrawMode mode) { this.rectMode = mode; }
-    protected void ellipseMode(DrawMode mode) { this.ellipseMode = mode; }
-    protected void shapeMode(DrawMode mode) { this.shapeMode = mode; }
+    public void imageMode(DrawMode mode) { this.imageMode = mode; }
+    public void rectMode(DrawMode mode) { this.rectMode = mode; }
+    public void ellipseMode(DrawMode mode) { this.ellipseMode = mode; }
+    public void shapeMode(DrawMode mode) { this.shapeMode = mode; }
 
-    // Colors
-    public static int color(int a, int r, int g, int b) { return (a << 24) | (r << 16) | (g << 8) | b; }
-    public static int color(int r, int g, int b) { return color(255, r, g, b); }
-    public static int color(int gray) { return color(gray, gray, gray); }
-    public static int red(int color) { return (color >> 16) & 0xFF; }
-    public static int green(int color) { return (color >> 8) & 0xFF; }
-    public static int blue(int color) { return color & 0xFF; }
-    public static int alpha(int color) { return (color >> 24) & 0xFF; }
-    public static int lerpColor(int c1, int c2, float amt) {
-        return color((int)(alpha(c1) + amt * (alpha(c2) - alpha(c1))),
-            (int)(red(c1) + amt * (red(c2) - red(c1))),
-            (int)(green(c1) + amt * (green(c2) - green(c1))),
-            (int)(blue(c1) + amt * (blue(c2) - blue(c1))));
+    // ============ Images & Asset Paths ============
+
+    /**
+     * Loads an image from the sketch's asset root (or an absolute path).
+     * Relative paths are resolved the same way {@link #sketchPath(String)}
+     * resolves them, so {@code loadImage("head.png")} finds
+     * {@code <project>/head.png} and {@code loadImage("assets/head.png")}
+     * finds {@code <project>/assets/head.png}.
+     *
+     * @return the loaded image, or {@code null} (with an error printed) if the
+     *         file cannot be found or decoded
+     */
+    public KImage loadImage(String filename) {
+        return loadImage(new File(sketchPath(filename)));
     }
-    public static int brightness(int color) { return (int)(0.299*red(color) + 0.587*green(color) + 0.114*blue(color)); }
-    public static int hue(int color) {
-        int r = red(color), g = green(color), b = blue(color),
-        max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));
-        return (max == min) ? 0 :
-            (max == r) ? (int)(60 * (g - b) / (double)(max - min) + 360) % 360 :
-            (max == g) ? (int)(60 * (b - r) / (double)(max - min) + 120) :
-            (int)(60 * (r - g) / (double)(max - min) + 240);
+
+    /**
+     * Loads an image from an explicit file path.
+     */
+    public KImage loadImage(Path path) {
+        return loadImage(path.toFile());
     }
-    public static int saturation(int color) {
-        int r = red(color), g = green(color), b = blue(color),
-        max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));
-        return (max == 0) ? 0 : (int)(255.0 * (max - min) / max);
+
+    /**
+     * Loads an image from an explicit file.
+     */
+    public KImage loadImage(File file) {
+        try {
+            return new KImage(file, window);
+        } catch (KanvasException e) {
+            System.err.println("loadImage failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Draws an image at its native size at (x, y), respecting the current
+     * image mode. Public so helper classes can call it, like Processing does
+     * via {@code parent.image(...)}.
+     */
+    public void image(KImage img, float x, float y) {
+        if (img == null) return;
+        image(img, x, y, img.getWidth(), img.getHeight());
+    }
+
+    /**
+     * Draws an image scaled to the given width/height, respecting the current
+     * image mode and the current matrix transform (translate/rotate/scale).
+     */
+    public void image(KImage img, float x, float y, float w, float h) {
+        if (img == null || graphics == null) return;
+        float[] r = resolveToCorner(x, y, w, h, imageMode);
+        graphics.image(img, r[0], r[1], r[2], r[3]);
+    }
+
+    /** Convenience overload matching the float signature with doubles. */
+    public void image(KImage img, double x, double y) {
+        if (img == null) return;
+        image(img, (float)x, (float)y, img.getWidth(), img.getHeight());
+    }
+
+    /** Convenience overload matching the float signature with doubles. */
+    public void image(KImage img, double x, double y, double w, double h) {
+        image(img, (float)x, (float)y, (float)w, (float)h);
+    }
+
+    /**
+     * Absolute-path getter for the sketch (project) root directory. When the
+     * sketch is launched through {@code kanvas run}, this is the directory
+     * containing {@code kanvas.toml} (the value is passed to the JVM via the
+     * {@code kanvas.sketchPath} system property). Falls back to the process
+     * working directory.
+     */
+    public String sketchPath() {
+        String prop = System.getProperty("kanvas.sketchPath");
+        if (prop != null && !prop.isBlank()) return Paths.get(prop).toAbsolutePath().normalize().toString();
+        return Paths.get("").toAbsolutePath().normalize().toString();
+    }
+
+    /**
+     * Resolves a relative path against the sketch root. Absolute paths are
+     * returned unchanged. Because {@code sketchPath} is a prefix of the
+     * returned path, paths can be nested arbitrarily deep
+     * ({@code sketchPath("assets/textures/head.png")}).
+     */
+    public String sketchPath(String where) {
+        if (where == null || where.isBlank()) return sketchPath();
+        Path p = Paths.get(where);
+        if (p.isAbsolute()) return p.normalize().toString();
+        return Paths.get(sketchPath()).resolve(where).normalize().toString();
+    }
+
+    /**
+     * Resolves a path relative to the sketch's data directory. Falls back to
+     * the sketch root so projects with a {@code data/} folder or plain assets
+     * both work.
+     */
+    public String dataPath(String where) {
+        if (where == null || where.isBlank()) return sketchPath();
+        Path dataDir = Paths.get(sketchPath()).resolve("data");
+        if (dataDir.toFile().isDirectory()) return dataDir.resolve(where).normalize().toString();
+        return sketchPath(where);
+    }
+
+    // ============ Matrix Transformations ============
+    
+    /**
+     * Saves the current transformation matrix on the stack.
+     * Used with {@link #popMatrix()} to create nested transformations.
+     */
+    protected void pushMatrix() {
+        matrixStack.push(new AffineTransform(currentTransform));
+        if (graphics != null) graphics.pushMatrix(new AffineTransform(currentTransform));
+    }
+    
+    /**
+     * Restores the previous transformation matrix from the stack.
+     * Must be paired with {@link #pushMatrix()}.
+     */
+    protected void popMatrix() {
+        if (matrixStack.isEmpty()) {
+            System.err.println("Warning: popMatrix() called without matching pushMatrix()");
+            return;
+        }
+        currentTransform = matrixStack.pop();
+        if (graphics != null) graphics.popMatrix();
+    }
+    
+    /**
+     * Translates (moves) the coordinate system by the specified x and y offset.
+     * @param x the horizontal offset
+     * @param y the vertical offset
+     */
+    protected void translate(float x, float y) {
+        currentTransform.translate(x, y);
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Rotates the coordinate system by the specified angle in radians.
+     * @param angle the rotation angle in radians (counterclockwise)
+     */
+    protected void rotate(float angle) {
+        currentTransform.rotate(angle);
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Scales the coordinate system by the specified factors.
+     * @param sx the horizontal scale factor
+     * @param sy the vertical scale factor
+     */
+    protected void scale(float sx, float sy) {
+        currentTransform.scale(sx, sy);
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Scales the coordinate system uniformly by the specified factor.
+     * @param s the scale factor
+     */
+    protected void scale(float s) {
+        scale(s, s);
+    }
+    
+    /**
+     * Resets the transformation matrix to the identity (no transformation).
+     */
+    protected void resetMatrix() {
+        currentTransform = new AffineTransform();
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Applies a shear transformation along the x-axis.
+     * @param angle the shear angle in radians
+     */
+    protected void shearX(float angle) {
+        currentTransform.shear(Math.tan(angle), 0);
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Applies a shear transformation along the y-axis.
+     * @param angle the shear angle in radians
+     */
+    protected void shearY(float angle) {
+        currentTransform.shear(0, Math.tan(angle));
+        if (graphics != null) graphics.setTransform(currentTransform);
+    }
+    
+    /**
+     * Gets the current transformation matrix.
+     * @return a copy of the current AffineTransform
+     */
+    protected AffineTransform getMatrix() {
+        return new AffineTransform(currentTransform);
     }
 }

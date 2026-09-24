@@ -2,7 +2,7 @@ package kanvas.gui;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferStrategy;
+import java.awt.image.*;
 import java.util.concurrent.CountDownLatch;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -154,5 +154,14 @@ class KanvasWindow {
             Point p = frame.getLocationOnScreen();
             frame.setLocation(p.x + dx, p.y + dy);
         });
+    }
+
+
+    public static void displayImage(KanvasWindow window, KImage image, int x, int y) {
+        if (window == null || image == null || image.image == null) return;
+        Graphics2D g = window.acquireGraphics();
+        boolean smooth = (image.window != null && image.window.sketch != null) ? image.window.sketch.smoothing : true;
+        g.drawImage(image.image.getScaledInstance(image.width, image.height, (smooth ? Image.SCALE_SMOOTH : Image.SCALE_FAST)), x, y, null);
+        window.show();
     }
 }
