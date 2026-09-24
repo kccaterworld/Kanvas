@@ -1,0 +1,28 @@
+// Debug window. This file is NOT the main entry point; it is launched from
+// Main.kvs with `new Debug().launchWindow()`. Its own render loop runs on a
+// separate thread and closing it stops only this window.
+import kanvas.libs.math.KVector2;
+
+KVector2 spot;
+
+void setup() {
+    size(300, 200);
+    setTitle("Debug Window");
+    spot = new KVector2(150, 100);
+}
+
+void draw() {
+    background(220);
+    fill(0);
+    noStroke();
+    rect(10, 10, 90, 20);
+
+    spot.x += mouseX * 0.01f;
+    spot.y += mouseY * 0.01f;
+    fill(255, 0, 0);
+    ellipse((float)spot.x, (float)spot.y, 20, 20);
+}
+
+void mousePressed() {
+    println("Debug: mouseButton=" + mouseButton + " at " + mouseX + "," + mouseY);
+}

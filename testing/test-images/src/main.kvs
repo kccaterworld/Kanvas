@@ -1,0 +1,72 @@
+// Tests loadImage(), image(), imageMode, and sketchPath().
+// The sketch draws the same 64x64 test image in several ways:
+//   - native size at top-left
+//   - scaled into a rectangle
+//   - centered via imageMode(CENTER)
+//   - rotated inside a translated matrix stack
+
+import kanvas.gui.KImage;
+
+KImage icon;
+KImage iconBig;
+
+void setup() {
+    size(640, 480);
+
+    // sketchPath should resolve relative to the project root.
+    println("sketchPath(): " + sketchPath());
+    println("sketchPath(assets): " + sketchPath("assets"));
+    println("dataPath(assets/test-image.png): " + dataPath("assets/test-image.png"));
+
+    // loadImage resolves relative paths against the sketch root.
+    icon = loadImage("assets/test-image.png");
+    if (icon != null) {
+        println("icon loaded: " + icon.getWidth() + "x" + icon.getHeight());
+    } else {
+        println("ICON FAILED TO LOAD");
+    }
+
+    // Scale a copy for the large draw.
+    iconBig = icon != null ? icon.resize(128, 128) : null;
+    if (iconBig != null) {
+        println("iconBig: " + iconBig.getWidth() + "x" + iconBig.getHeight());
+    }
+
+    // Missing files must not crash or spam the console.
+    KImage missing = loadImage("does-not-exist.png");
+    if (missing != null) println("unexpected: missing image loaded");
+    KImage absImg = loadImage(sketchPath("assets/test-image.png"));
+    println("absImg: " + (absImg != null ? absImg.getWidth() + "x" + absImg.getHeight() : "null"));
+}
+
+void draw() {
+    background(40);
+
+    // 1) Native size, default imageMode(CORNER)
+    image(icon, 20, 20);
+
+    // 2) Scaled rectangle (w, h)
+    image(icon, 160, 20, 120, 40);
+
+    // 3) CENTER mode
+    imageMode(CENTER);
+    image(iconBig, 420, 90);
+    imageMode(CORNER);
+
+    // 4) Rotated sprite, mimicking ProcessCraft's player part rendering:
+    //    pushMatrix -> translate -> rotate -> image(CENTER-ish)
+    pushMatrix();
+    translate(320, 300);
+    rotate(frameCount * 0.02f);
+    image(icon, 0, 0, 96, 96);
+    popMatrix();
+
+    // 5) CORNERS and RADIUS modes
+    imageMode(CORNERS);
+    image(icon, 20, 200, 120, 260);
+    imageMode(RADIUS);
+    image(icon, 500, 380, 48, 24); // w/h are half-extents -> 96x48
+    imageMode(CORNER);
+
+    if (frameCount > 240) noLoop();
+}

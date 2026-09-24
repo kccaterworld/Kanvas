@@ -1,0 +1,26 @@
+// Main sketch window. Launches the Debug window which is its own .kvs file.
+// Each .kvs file produces its own window; this file is the main entry point.
+import kanvas.libs.math.KVector2;
+
+Debug debug;
+
+void setup() {
+    size(400, 300);
+    setTitle("Main Window");
+
+    // Launch the separate Debug window (from Debug.kvs) on its own render loop.
+    debug = new Debug();
+    debug.setTitle("Debug Window");
+    debug.launchWindow();
+}
+
+void draw() {
+    background(30);
+    fill(100, 200, 255);
+    noStroke();
+    ellipse(width / 2, height / 2, 120, 80);
+}
+
+void keyPressed() {
+    if (key == ' ') println("Main: key=" + key + " keyCode=" + keyCode);
+}

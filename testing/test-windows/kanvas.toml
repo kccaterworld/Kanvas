@@ -1,0 +1,20 @@
+name = "test-windows"
+version = "0.1.0"
+author = "Kemal"
+description = "Tests multi-window support (Debug.kvs launched from Main.kvs)"
+mainClass = "kanvas.generated.Main"
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+outputDir = "build/classes"
+
+[compiler]
+target = "21"
+encoding = "UTF-8"
+
+[packaging]
+jarName = "test-windows.jar"
+version = "0.1.0"
+nativeTargets = []
