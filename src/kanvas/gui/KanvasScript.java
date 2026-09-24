@@ -18,6 +18,26 @@ public abstract class KanvasScript extends KanvasStdlib {
     public static final DrawMode CORNERS = DrawMode.CORNERS;
     public static final DrawMode CENTER  = DrawMode.CENTER;
     public static final DrawMode RADIUS  = DrawMode.RADIUS;
+
+    // Mouse button constants (Processing-compatible). Note: LEFT/RIGHT double
+    // as arrow-key codes (37/39), matching Processing's shared constant table.
+    public static final int LEFT = 37;
+    public static final int RIGHT = 39;
+    public static final int CENTER_BUTTON = 3;
+
+    // Keyboard event constants (Processing-compatible keyCode values)
+    public static final int CODED = 0xFFFF;
+    public static final int UP = 38;
+    public static final int DOWN = 40;
+    public static final int ALT = 18;
+    public static final int CONTROL = 17;
+    public static final int SHIFT = 16;
+    public static final int BACKSPACE = 8;
+    public static final int TAB = 9;
+    public static final int ENTER = 10;
+    public static final int RETURN = 13;
+    public static final int ESC = 27;
+    public static final int DELETE = 127;
     
     // Shape building constants
     public static final int POINTS = 0;
@@ -65,6 +85,8 @@ public abstract class KanvasScript extends KanvasStdlib {
     protected volatile float mouseY;
     protected volatile float pmouseX;
     protected volatile float pmouseY;
+    protected volatile int mouseButton = LEFT;
+    protected volatile int mouseWheelCounter;
     protected volatile float frameRate = 60;
     protected volatile int frameCount;
     protected int displayHeight;
@@ -78,15 +100,35 @@ public abstract class KanvasScript extends KanvasStdlib {
     protected final float QUARTER_PI = (float)(Math.PI / 4);
     protected final float TWO_PI = (float)(2 * Math.PI);
 
-    // Entry point called from generated main method
+    // Entry point called from generated main method. Blocks until this
+    // (primary) window closes.
     public final void start() {
+        launchWindow(true);
+        try { window.awaitShutdown();
+        } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage()); }
+    }
+
+    /**
+     * Opens this script's own window on a separate render loop and returns
+     * immediately. Used to create secondary (debug) windows from another
+     * {@code .kvs} file: {@code Debug debug = new Debug(); debug.launchWindow();}
+     *
+     * <p>Closing a secondary window stops only that script's render loop; it
+     * does not exit the whole program. Use {@link #start()} for the primary
+     * window, which exits on close.
+     */
+    public void launchWindow() {
+        launchWindow(false);
+    }
+
+    private void launchWindow(boolean exitOnClose) {
         setGlobal("script", this);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
         displayWidth = screen.width;
         displayHeight = screen.height;
         settings();
 
-        window = new KanvasWindow(this);
+        window = new KanvasWindow(this, exitOnClose);
         setGlobal("window", window);
 
         graphics = new KanvasGraphics(this);
@@ -103,10 +145,6 @@ public abstract class KanvasScript extends KanvasStdlib {
         Thread renderThread = new Thread(this::renderLoop, "kanvas-render");
         renderThread.setDaemon(true);
         renderThread.start();
-
-        try { window.awaitShutdown();
-        } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage()); }
-
     }
 
     private void renderLoop() {

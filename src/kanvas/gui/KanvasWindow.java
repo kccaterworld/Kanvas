@@ -12,11 +12,22 @@ class KanvasWindow {
     private Canvas canvas;
     private BufferStrategy strategy;
     private final KanvasScript sketch;
+    private final boolean exitOnClose;
     private volatile boolean running = true;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     public KanvasWindow(KanvasScript sketch) {
+        this(sketch, true);
+    }
+
+    /**
+     * @param exitOnClose {@code true} for the primary window (closing it calls
+     *                    {@code System.exit}); {@code false} for secondary
+     *                    windows whose close should only stop that script.
+     */
+    public KanvasWindow(KanvasScript sketch, boolean exitOnClose) {
         this.sketch = sketch;
+        this.exitOnClose = exitOnClose;
     }
 
     public void open() {
@@ -41,7 +52,7 @@ class KanvasWindow {
                 running = false;
                 sketch.dispose();
                 shutdownLatch.countDown();
-                System.exit(0);
+                if (exitOnClose) System.exit(0);
             }
             @Override
             public void windowGainedFocus(WindowEvent e) {
@@ -63,11 +74,17 @@ class KanvasWindow {
         canvas.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                sketch.pmouseX = sketch.mouseX;
+                sketch.pmouseY = sketch.mouseY;
+                sketch.mouseX = e.getX();
+                sketch.mouseY = e.getY();
+                sketch.mouseButton = buttonOf(e);
                 sketch.mousePressed = true;
                 sketch.mousePressed();
             }
             @Override
             public void mouseReleased(MouseEvent e) {
+                sketch.mouseButton = buttonOf(e);
                 sketch.mousePressed = false;
                 sketch.mouseReleased();
             }
@@ -92,7 +109,10 @@ class KanvasWindow {
             }
         });
 
-        canvas.addMouseWheelListener((MouseWheelEvent e) -> sketch.mouseWheel());
+        canvas.addMouseWheelListener((MouseWheelEvent e) -> {
+            sketch.mouseWheelCounter += e.getWheelRotation();
+            sketch.mouseWheel();
+        });
 
         canvas.addKeyListener(new KeyAdapter() {
             @Override
@@ -163,5 +183,16 @@ class KanvasWindow {
         boolean smooth = (image.window != null && image.window.sketch != null) ? image.window.sketch.smoothing : true;
         g.drawImage(image.image.getScaledInstance(image.width, image.height, (smooth ? Image.SCALE_SMOOTH : Image.SCALE_FAST)), x, y, null);
         window.show();
+    }
+
+    // Maps a java.awt MouseEvent button to Kanvas's Processing-compatible
+    // mouse button codes (LEFT=37, RIGHT=39, CENTER_BUTTON=3).
+    private static int buttonOf(MouseEvent e) {
+        switch (e.getButton()) {
+            case MouseEvent.BUTTON1: return KanvasScript.LEFT;
+            case MouseEvent.BUTTON3: return KanvasScript.RIGHT;
+            case MouseEvent.BUTTON2: return KanvasScript.CENTER_BUTTON;
+            default: return KanvasScript.LEFT;
+        }
     }
 }
