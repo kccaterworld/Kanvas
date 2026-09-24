@@ -2,542 +2,256 @@ package kanvas.preprocess;
 
 import kanvas.KanvasException;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+/**
+ * AST-based Kanvas-to-Java transpiler.
+ *
+ * Pipeline: source → Lexer → Parser → KanvasSyntaxTree.KanvasFile → generate()
+ *
+ * {@link Preprocessor1} remains as the legacy in-one-class transpiler used by
+ * {@link KanvasPreprocessor} for the current build system.
+ */
 public class Preprocessor {
+
     public static final String DEFAULT_PACKAGE = "kanvas.generated";
 
-    private enum TokenType {
-        IDENTIFIER,
-        KEYWORD,
-        SYMBOL,
-        STRING,
-        COMMENT,
-        EOF
-    }
-    private static final Set<String> KEYWORDS = Set.of(
-        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
-        "class", "const", "continue", "default", "do", "double", "else", "enum",
-        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
-        "import", "instanceof", "int", "interface", "long", "native", "new",
-        "package", "private", "protected", "public", "return", "short", "static",
-        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
-        "transient", "try", "void", "volatile", "while", "var"
-    );
-    private static final Set<String> MODIFIERS = Set.of( "public", "private", "protected", "static", "final" );
+    // =========================================================================
+    // Public API
+    // =========================================================================
 
-    private String sourceCode;
-    private String className;
-
-    public Preprocessor(String kanvasSourceCode, String className) {
-        this.sourceCode = kanvasSourceCode == null ? "" : kanvasSourceCode;
-        this.className = classNameFor(className);
+    public static String transpile(String source, String className) throws KanvasException {
+        return transpile(source, DEFAULT_PACKAGE, className);
     }
-    public Preprocessor(String kvsFilePath) throws KanvasException { this(new File(kvsFilePath)); }
-    public Preprocessor(File kvsFile) throws KanvasException {
-        if (!kvsFile.exists() || kvsFile.isDirectory() || !kvsFile.canRead())
-            throw new KanvasException("File not found or not readable: " + kvsFile.getPath());
-        this.className = classNameFor(kvsFile.getName().replaceFirst("[.][^.]+$", ""));
-        try { this.sourceCode = Files.readString(kvsFile.toPath(), StandardCharsets.UTF_8);
-        } catch (IOException e) { throw new KanvasException("Failed to read " + kvsFile.getPath(), e);
+
+    public static String transpile(String source, String packageName, String className) throws KanvasException {
+        KanvasSyntaxTree.KanvasFile ast = parse(source);
+        return generate(ast, packageName, classNameFor(className));
+    }
+
+    public static KanvasSyntaxTree.KanvasFile parse(String source) throws KanvasException {
+        try {
+            return new Parser(source).parse();
+        } catch (Parser.ParseException e) {
+            throw new KanvasException("Parse error: " + e.getMessage(), e);
         }
     }
 
-    public void setup(String sourceCode) {
-        this.sourceCode = sourceCode == null ? "" : sourceCode;
-    }
+    public static String generate(KanvasSyntaxTree.KanvasFile ast, String packageName, String className) {
+        Set<String> methodNames = methodNameSet(ast);
+        StringBuilder out = new StringBuilder();
 
-    public String transpile() throws KanvasException {
-        return transpile(sourceCode, DEFAULT_PACKAGE, className);
-    }
+        if (packageName != null && !packageName.isBlank())
+            out.append("package ").append(packageName).append(";\n\n");
 
-    public String transpile(String sourceCode, String packageName, String className) throws KanvasException {
-        ParsedSource parsed = new Parser(sourceCode == null ? "" : sourceCode).parse();
-        String generatedClassName = classNameFor(className);
+        for (KanvasSyntaxTree.ImportDecl imp : ast.imports)
+            if (!imp.isKanvasLib) out.append(imp.raw).append("\n");
 
-        StringBuilder output = new StringBuilder();
-        if (packageName != null && !packageName.isBlank()) {
-            output.append("package ").append(packageName).append(";\n\n");
-        }
-
-        boolean isTUI = parsed.imports.remove("import kanvas.tui;");
-        parsed.imports.remove("import kanvas.gui;");
-
-        for (String importLine : parsed.imports)
-            output.append(importLine).append("\n");
-
-        if (isTUI) {
-            output.append("import kanvas.tui.KanvasTUIScript;\n");
-            output.append("import kanvas.tui.KeyEvent;\n\n");
-            output.append("public class ").append(generatedClassName).append(" extends KanvasTUIScript {\n");
+        if (ast.isTUI) {
+            out.append("import kanvas.tui.KanvasTUIScript;\n");
+            out.append("import kanvas.tui.KeyEvent;\n\n");
+            out.append("public class ").append(className).append(" extends KanvasTUIScript {\n");
         } else {
-            output.append("import kanvas.gui.KanvasScript;\n\n");
-            output.append("public class ").append(generatedClassName).append(" extends KanvasScript {\n");
+            out.append("import kanvas.gui.KanvasScript;\n\n");
+            out.append("public class ").append(className).append(" extends KanvasScript {\n");
         }
 
-        for (String field : parsed.fields)
-            output.append(indent(field)).append("\n\n");
-        for (MethodDeclaration method : parsed.methods)
-            output.append(indent(method.toSource())).append("\n\n");
+        for (KanvasSyntaxTree.FieldDecl field : ast.fields)
+            out.append(indent(field.raw)).append("\n\n");
 
-        addDefaultMethod(output, parsed.methodNames, "setup");
-        addDefaultMethod(output, parsed.methodNames, "draw");
-        if (!isTUI) {
-            addDefaultMethod(output, parsed.methodNames, "mousePressed");
-            addDefaultMethod(output, parsed.methodNames, "mouseReleased");
-            addDefaultMethod(output, parsed.methodNames, "mouseClicked");
-            addDefaultMethod(output, parsed.methodNames, "mouseDragged");
-            addDefaultMethod(output, parsed.methodNames, "mouseWheel");
-            addDefaultMethod(output, parsed.methodNames, "keyPressed");
-            addDefaultMethod(output, parsed.methodNames, "keyReleased");
-            addDefaultMethod(output, parsed.methodNames, "keyTyped");
+        for (KanvasSyntaxTree.MethodDecl method : ast.methods)
+            out.append(indent(methodToJava(method))).append("\n\n");
+
+        addDefaultMethod(out, methodNames, "setup");
+        addDefaultMethod(out, methodNames, "draw");
+        if (!ast.isTUI) {
+            addDefaultMethod(out, methodNames, "mousePressed");
+            addDefaultMethod(out, methodNames, "mouseReleased");
+            addDefaultMethod(out, methodNames, "mouseClicked");
+            addDefaultMethod(out, methodNames, "mouseDragged");
+            addDefaultMethod(out, methodNames, "mouseWheel");
+            addDefaultMethod(out, methodNames, "keyPressed");
+            addDefaultMethod(out, methodNames, "keyReleased");
+            addDefaultMethod(out, methodNames, "keyTyped");
         }
-        output.append("    public static void main(String[] args) {\n");
-        output.append("        ").append(generatedClassName).append(" instance = new ").append(generatedClassName).append("();\n");
-        output.append("        instance.start();\n");
-        output.append("    }\n\n");
 
-        output.append("}\n");
-        return output.toString();
+        out.append("    public static void main(String[] args) {\n");
+        out.append("        ").append(className).append(" instance = new ").append(className).append("();\n");
+        out.append("        instance.start();\n");
+        out.append("    }\n\n");
+        out.append("}\n");
+        return out.toString();
     }
 
-    private static void addDefaultMethod(StringBuilder output, Set<String> methodNames, String methodName) {
-        if (methodNames.contains(methodName)) return;
-        output.append("    public void ").append(methodName).append("() {}\n\n");
+    // =========================================================================
+    // Code generation — methods
+    // =========================================================================
+
+    public static String methodToJava(KanvasSyntaxTree.MethodDecl m) {
+        String mods = m.modifiers.isEmpty() ? "" : String.join(" ", m.modifiers) + " ";
+        if (!m.hasAccessModifier) mods = "public " + mods;
+        String params = m.params.stream()
+            .map(p -> p.type + (p.varargs ? "... " : " ") + p.name)
+            .collect(Collectors.joining(", "));
+        String throws_ = m.throwsTypes.isEmpty() ? "" : " throws " + String.join(", ", m.throwsTypes);
+        return mods + m.returnType + " " + m.name + "(" + params + ")" + throws_ + " " + stmtToJava(m.body);
+    }
+
+    // =========================================================================
+    // Code generation — statements
+    // =========================================================================
+
+    /**
+     * Converts a statement to Java source with relative indentation.
+     * Each line of the result starts at column 0; callers add their own prefix.
+     * Use {@link #embedInBlock} when placing inside a block.
+     */
+    public static String stmtToJava(KanvasSyntaxTree.Stmt stmt) {
+        if (stmt instanceof KanvasSyntaxTree.BlockStmt b) {
+            if (b.stmts.isEmpty()) return "{}";
+            String inner = b.stmts.stream()
+                .map(s -> embedInBlock(s, "    "))
+                .collect(Collectors.joining("\n"));
+            return "{\n" + inner + "\n}";
+        }
+        if (stmt instanceof KanvasSyntaxTree.ExprStmt s)    return exprToJava(s.expr) + ";";
+        if (stmt instanceof KanvasSyntaxTree.VarDeclStmt s) return varDeclToJava(s);
+        if (stmt instanceof KanvasSyntaxTree.ReturnStmt s)  return "return" + (s.value != null ? " " + exprToJava(s.value) : "") + ";";
+        if (stmt instanceof KanvasSyntaxTree.IfStmt s)      return ifToJava(s);
+        if (stmt instanceof KanvasSyntaxTree.WhileStmt s)   return "while (" + exprToJava(s.cond) + ") " + stmtToJava(s.body);
+        if (stmt instanceof KanvasSyntaxTree.DoWhileStmt s) return "do " + stmtToJava(s.body) + " while (" + exprToJava(s.cond) + ");";
+        if (stmt instanceof KanvasSyntaxTree.ForStmt s)     return forToJava(s);
+        if (stmt instanceof KanvasSyntaxTree.ForEachStmt s) return "for (" + s.type + " " + s.name + " : " + exprToJava(s.iterable) + ") " + stmtToJava(s.body);
+        if (stmt instanceof KanvasSyntaxTree.BreakStmt s)   return "break" + (s.label != null ? " " + s.label : "") + ";";
+        if (stmt instanceof KanvasSyntaxTree.ContinueStmt s) return "continue" + (s.label != null ? " " + s.label : "") + ";";
+        if (stmt instanceof KanvasSyntaxTree.ThrowStmt s)   return "throw " + exprToJava(s.expr) + ";";
+        if (stmt instanceof KanvasSyntaxTree.TryStmt s)     return tryToJava(s);
+        if (stmt instanceof KanvasSyntaxTree.SynchronizedStmt s) return "synchronized (" + exprToJava(s.lock) + ") " + stmtToJava(s.body);
+        if (stmt instanceof KanvasSyntaxTree.RawStmt s)     return s.raw;
+        return "/* unknown stmt */";
+    }
+
+    private static String varDeclToJava(KanvasSyntaxTree.VarDeclStmt s) {
+        String mods = s.modifiers.isEmpty() ? "" : String.join(" ", s.modifiers) + " ";
+        return mods + s.type + " " + s.name + (s.init != null ? " = " + exprToJava(s.init) : "") + ";";
+    }
+
+    private static String ifToJava(KanvasSyntaxTree.IfStmt s) {
+        String src = "if (" + exprToJava(s.cond) + ") " + stmtToJava(s.then);
+        if (s.else_ != null) src += " else " + stmtToJava(s.else_);
+        return src;
+    }
+
+    private static String forToJava(KanvasSyntaxTree.ForStmt s) {
+        String init = s.init == null ? "" : stmtToJavaNoSemi(s.init);
+        String cond = s.cond == null ? "" : exprToJava(s.cond);
+        String upd  = s.update.stream().map(Preprocessor::exprToJava).collect(Collectors.joining(", "));
+        return "for (" + init + "; " + cond + "; " + upd + ") " + stmtToJava(s.body);
+    }
+
+    private static String tryToJava(KanvasSyntaxTree.TryStmt s) {
+        StringBuilder sb = new StringBuilder("try ").append(stmtToJava(s.body));
+        for (KanvasSyntaxTree.CatchClause c : s.catches)
+            sb.append(" catch (").append(c.exceptionType).append(" ").append(c.name).append(") ").append(stmtToJava(c.body));
+        if (s.finally_ != null) sb.append(" finally ").append(stmtToJava(s.finally_));
+        return sb.toString();
+    }
+
+    /** Like {@link #stmtToJava} but strips the trailing ';' — used for for-loop init. */
+    private static String stmtToJavaNoSemi(KanvasSyntaxTree.Stmt s) {
+        String str = stmtToJava(s);
+        return str.endsWith(";") ? str.substring(0, str.length() - 1) : str;
+    }
+
+    /**
+     * Indents a statement for embedding inside a block at a given base indent level.
+     * All lines of the statement get {@code baseIndent} prepended.
+     */
+    private static String embedInBlock(KanvasSyntaxTree.Stmt s, String baseIndent) {
+        String src = stmtToJava(s);
+        return baseIndent + src.replace("\n", "\n" + baseIndent);
+    }
+
+    // =========================================================================
+    // Code generation — expressions
+    // =========================================================================
+
+    public static String exprToJava(KanvasSyntaxTree.Expr expr) {
+        if (expr instanceof KanvasSyntaxTree.NameExpr e)         return e.name;
+        if (expr instanceof KanvasSyntaxTree.LiteralExpr e)      return e.raw;
+        if (expr instanceof KanvasSyntaxTree.ParenExpr e)        return "(" + exprToJava(e.expr) + ")";
+        if (expr instanceof KanvasSyntaxTree.FieldAccessExpr e)  return exprToJava(e.target) + "." + e.field;
+        if (expr instanceof KanvasSyntaxTree.MethodCallExpr e)   return callToJava(e);
+        if (expr instanceof KanvasSyntaxTree.ArrayAccessExpr e)  return exprToJava(e.array) + "[" + exprToJava(e.index) + "]";
+        if (expr instanceof KanvasSyntaxTree.AssignExpr e)       return exprToJava(e.target) + " " + e.op + " " + exprToJava(e.value);
+        if (expr instanceof KanvasSyntaxTree.BinaryExpr e)       return "(" + exprToJava(e.left) + " " + e.op + " " + exprToJava(e.right) + ")";
+        if (expr instanceof KanvasSyntaxTree.UnaryExpr e)        return e.postfix ? exprToJava(e.expr) + e.op : e.op + exprToJava(e.expr);
+        if (expr instanceof KanvasSyntaxTree.CastExpr e)         return "((" + e.type + ") " + exprToJava(e.expr) + ")";
+        if (expr instanceof KanvasSyntaxTree.NewObjectExpr e)    return "new " + e.type + "(" + joinArgs(e.args) + ")";
+        if (expr instanceof KanvasSyntaxTree.NewArrayExpr e)     return newArrayToJava(e);
+        if (expr instanceof KanvasSyntaxTree.ArrayInitExpr e)    return "{" + joinArgs(e.elements) + "}";
+        if (expr instanceof KanvasSyntaxTree.TernaryExpr e)      return "(" + exprToJava(e.cond) + " ? " + exprToJava(e.then) + " : " + exprToJava(e.else_) + ")";
+        if (expr instanceof KanvasSyntaxTree.InstanceofExpr e)   return exprToJava(e.expr) + " instanceof " + e.type + (e.bindingName != null ? " " + e.bindingName : "");
+        if (expr instanceof KanvasSyntaxTree.LambdaExpr e)       return lambdaToJava(e);
+        if (expr instanceof KanvasSyntaxTree.RawExpr e)          return e.raw;
+        return "/* unknown expr */";
+    }
+
+    private static String callToJava(KanvasSyntaxTree.MethodCallExpr e) {
+        String target = e.target != null ? exprToJava(e.target) + "." : "";
+        return target + e.name + "(" + joinArgs(e.args) + ")";
+    }
+
+    private static String newArrayToJava(KanvasSyntaxTree.NewArrayExpr e) {
+        String dims = e.dimensions.stream()
+            .map(d -> "[" + (d instanceof KanvasSyntaxTree.RawExpr r && r.raw.isEmpty() ? "" : exprToJava(d)) + "]")
+            .collect(Collectors.joining());
+        return "new " + e.elementType + dims;
+    }
+
+    private static String lambdaToJava(KanvasSyntaxTree.LambdaExpr e) {
+        String params = e.params.stream()
+            .map(p -> p.type.isEmpty() ? p.name : p.type + " " + p.name)
+            .collect(Collectors.joining(", "));
+        String body = e.body instanceof KanvasSyntaxTree.Expr ex ? exprToJava(ex)
+                    : e.body instanceof KanvasSyntaxTree.Stmt st ? stmtToJava(st)
+                    : "/* ? */";
+        return "(" + params + ") -> " + body;
+    }
+
+    private static String joinArgs(List<KanvasSyntaxTree.Expr> args) {
+        return args.stream().map(Preprocessor::exprToJava).collect(Collectors.joining(", "));
+    }
+
+    // =========================================================================
+    // Utilities
+    // =========================================================================
+
+    public static String classNameFor(String value) {
+        return Preprocessor1.classNameFor(value);
+    }
+
+    private static Set<String> methodNameSet(KanvasSyntaxTree.KanvasFile ast) {
+        Set<String> names = new java.util.HashSet<>();
+        for (KanvasSyntaxTree.MethodDecl m : ast.methods) names.add(m.name);
+        return names;
+    }
+
+    private static void addDefaultMethod(StringBuilder out, Set<String> present, String name) {
+        if (!present.contains(name))
+            out.append("    public void ").append(name).append("() {}\n\n");
     }
 
     private static String indent(String source) {
         String[] lines = source.split("\\R", -1);
-        StringBuilder indented = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lines.length; i++) {
-            if (i > 0) indented.append("\n");
-            if (!lines[i].isBlank()) indented.append("    ");
-            indented.append(lines[i]);
+            if (i > 0) sb.append("\n");
+            if (!lines[i].isBlank()) sb.append("    ");
+            sb.append(lines[i]);
         }
-        return indented.toString();
-    }
-
-    public static String classNameFor(String value) {
-        if (value == null || value.isBlank()) return "Sketch";
-
-        StringBuilder name = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isJavaIdentifierPart(c)) {
-                if (name.length() == 0 && !Character.isJavaIdentifierStart(c)) name.append('_');
-                name.append(capitalizeNext ? Character.toUpperCase(c) : c);
-                capitalizeNext = false;
-            } else {
-                capitalizeNext = true;
-            }
-        }
-
-        return name.length() == 0 ? "Sketch" : name.toString();
-    }
-
-    private static class Token {
-        final TokenType type;
-        final String text;
-        final int start;
-        final int end;
-        final int line;
-        final int column;
-
-        Token(TokenType type, String text, int start, int end, int line, int column) {
-            this.type = type;
-            this.text = text;
-            this.start = start;
-            this.end = end;
-            this.line = line;
-            this.column = column;
-        }
-
-        boolean is(String value) {
-            return text.equals(value);
-        }
-    }
-
-    private static class ParsedSource {
-        final List<String> imports = new ArrayList<>();
-        final List<String> fields = new ArrayList<>();
-        final List<MethodDeclaration> methods = new ArrayList<>();
-        final Set<String> methodNames = new HashSet<>();
-    }
-
-    private static class MethodDeclaration {
-        final String source;
-        final boolean hasAccessModifier;
-
-        MethodDeclaration(String source, boolean hasAccessModifier) {
-            this.source = source;
-            this.hasAccessModifier = hasAccessModifier;
-        }
-
-        String toSource() {
-            return hasAccessModifier ? source : "public " + source;
-        }
-    }
-
-    private static class Lexer {
-        private final String source;
-        private final List<Token> tokens = new ArrayList<>();
-        private int index = 0;
-        private int line = 1;
-        private int column = 1;
-
-        Lexer(String source) {
-            this.source = source;
-        }
-
-        List<Token> lex() throws KanvasException {
-            while (!atEnd()) {
-                char c = current();
-                if (Character.isWhitespace(c)) {
-                    advance();
-                } else if (Character.isJavaIdentifierStart(c)) {
-                    readIdentifier();
-                } else if (c == '"' || c == '\'') {
-                    readString(c);
-                } else if (c == '/' && peek(1) == '/') {
-                    readLineComment();
-                } else if (c == '/' && peek(1) == '*') {
-                    readBlockComment();
-                } else {
-                    add(TokenType.SYMBOL, String.valueOf(c), index, index + 1);
-                    advance();
-                }
-            }
-
-            tokens.add(new Token(TokenType.EOF, "", source.length(), source.length(), line, column));
-            return tokens;
-        }
-
-        private void readIdentifier() {
-            int start = index;
-            int startLine = line;
-            int startColumn = column;
-            while (!atEnd() && Character.isJavaIdentifierPart(current())) advance();
-            String text = source.substring(start, index);
-            TokenType type = KEYWORDS.contains(text) ? TokenType.KEYWORD : TokenType.IDENTIFIER;
-            tokens.add(new Token(type, text, start, index, startLine, startColumn));
-        }
-
-        private void readString(char quote) throws KanvasException {
-            int start = index;
-            int startLine = line;
-            int startColumn = column;
-            advance();
-            boolean escaped = false;
-            while (!atEnd()) {
-                char c = current();
-                advance();
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == quote) {
-                    tokens.add(new Token(TokenType.STRING, source.substring(start, index), start, index, startLine, startColumn));
-                    return;
-                } else if (quote == '\'' && (c == '\n' || c == '\r')) {
-                    throw new KanvasException("Unterminated character literal at line " + startLine + ", column " + startColumn);
-                }
-            }
-            throw new KanvasException("Unterminated string literal at line " + startLine + ", column " + startColumn);
-        }
-
-        private void readLineComment() {
-            int start = index;
-            int startLine = line;
-            int startColumn = column;
-            while (!atEnd() && current() != '\n' && current() != '\r') advance();
-            tokens.add(new Token(TokenType.COMMENT, source.substring(start, index), start, index, startLine, startColumn));
-        }
-
-        private void readBlockComment() throws KanvasException {
-            int start = index;
-            int startLine = line;
-            int startColumn = column;
-            advance();
-            advance();
-            while (!atEnd()) {
-                if (current() == '*' && peek(1) == '/') {
-                    advance();
-                    advance();
-                    tokens.add(new Token(TokenType.COMMENT, source.substring(start, index), start, index, startLine, startColumn));
-                    return;
-                }
-                advance();
-            }
-            throw new KanvasException("Unterminated block comment at line " + startLine + ", column " + startColumn);
-        }
-
-        private boolean atEnd() {
-            return index >= source.length();
-        }
-
-        private char current() {
-            return source.charAt(index);
-        }
-
-        private char peek(int offset) {
-            int next = index + offset;
-            return next >= source.length() ? '\0' : source.charAt(next);
-        }
-
-        private void advance() {
-            char c = source.charAt(index++);
-            if (c == '\n') {
-                line++;
-                column = 1;
-            } else {
-                column++;
-            }
-        }
-
-        private void add(TokenType type, String text, int start, int end) {
-            tokens.add(new Token(type, text, start, end, line, column));
-        }
-
-    }
-
-    private static class Parser {
-        private final String source;
-        private final List<Token> tokens;
-        private int index = 0;
-
-        Parser(String source) throws KanvasException {
-            this.source = source;
-            this.tokens = new Lexer(source).lex();
-        }
-
-        ParsedSource parse() throws KanvasException {
-            ParsedSource parsed = new ParsedSource();
-            while (!atEnd()) {
-                skipComments();
-                if (atEnd()) break;
-
-                Token token = peek();
-                if (token.is("import")) {
-                    parsed.imports.add(readUntilSemicolon(token.start));
-                } else if (token.is("package")) {
-                    readUntilSemicolon(token.start);
-                } else if (token.is("class") || token.is("interface") || token.is("enum")) {
-                    throw new KanvasException("Top-level " + token.text + " declarations are not supported in .kvs files yet at line " + token.line + ", column " + token.column);
-                } else { readMember(parsed); }
-            }
-            return parsed;
-        }
-
-        private void readMember(ParsedSource parsed) throws KanvasException {
-            int startIndex = index;
-            Token start = peek();
-            boolean hasAccessModifier = false;
-            while (MODIFIERS.contains(peek().text)) {
-                if (peek().is("public") || peek().is("private") || peek().is("protected")) {
-                    hasAccessModifier = true;
-                } advance();
-            }
-
-            MemberKind kind = findMemberKind(startIndex);
-            if (kind == null) throw new KanvasException("Expected a top-level variable or method declaration at line " + start.line + ", column " + start.column);
-
-            index = startIndex;
-            if (kind.method) {
-                MethodReadResult method = readMethod(start.start, hasAccessModifier);
-                parsed.methods.add(new MethodDeclaration(method.source, hasAccessModifier));
-                parsed.methodNames.add(method.name);
-            } else { parsed.fields.add(readVariable(start.start)); }
-        }
-
-        private MemberKind findMemberKind(int startIndex) throws KanvasException {
-            int parenDepth = 0;
-            int braceDepth = 0;
-            int bracketDepth = 0;
-            boolean sawEquals = false;
-
-            for (int i = startIndex; i < tokens.size(); i++) {
-                Token token = tokens.get(i);
-                if (token.type == TokenType.EOF) return null;
-                if (token.type == TokenType.COMMENT) continue;
-
-                if (token.is("(")) {
-                    if (parenDepth == 0 && !sawEquals) {
-                        Token previous = prevSig(i);
-                        Token next = nextSig(i);
-                        if (previous != null && next != null && nextMemberCanHaveBody(next)) return new MemberKind(true, previous.text);
-                    } parenDepth++;
-                } else if (token.is(")")) {
-                    parenDepth--;
-                    if (parenDepth < 0) throw new KanvasException("Unexpected ')' at line " + token.line + ", column " + token.column);
-                } else if (token.is("{")) {
-                    braceDepth++;
-                } else if (token.is("}")) {
-                    braceDepth--;
-                    if (braceDepth < 0) throw new KanvasException("Unexpected '}' at line " + token.line + ", column " + token.column);
-                } else if (token.is("[")) {
-                    bracketDepth++;
-                } else if (token.is("]")) {
-                    bracketDepth--;
-                    if (bracketDepth < 0) throw new KanvasException("Unexpected ']' at line " + token.line + ", column " + token.column);
-                } else if (token.is("=") && parenDepth == 0 && braceDepth == 0 && bracketDepth == 0) {
-                    sawEquals = true;
-                    Token previous = prevSig(i);
-                    return previous == null ? null : new MemberKind(false, previous.text);
-                } else if (token.is(";") && parenDepth == 0 && braceDepth == 0 && bracketDepth == 0) {
-                    Token previous = prevSig(i);
-                    return previous == null ? null : new MemberKind(false, previous.text);
-                }
-            }
-
-            return null;
-        }
-
-        private MethodReadResult readMethod(int startOffset, boolean hasAccessModifier) throws KanvasException {
-            Token openParen = null;
-            Token name = null;
-            while (!atEnd()) {
-                if (peek().is("(")) {
-                    openParen = peek();
-                    name = prevSig(index);
-                    break;
-                } advance();
-            }
-
-            if (openParen == null || name == null) throw new KanvasException("Expected method parameter list at line " + peek().line + ", column " + peek().column);
-            if (!isNameToken(name)) throw new KanvasException("Expected method name at line " + name.line + ", column " + name.column);
-            advance();
-            consumeBalanced("(", ")", openParen);
-
-            while (!atEnd() && !peek().is("{")) {
-                if (peek().is(";")) throw new KanvasException("Method declarations in .kvs must have a body at line " + peek().line + ", column " + peek().column);
-                advance();
-            }
-            if (atEnd()) throw new KanvasException("Expected method body at line " + openParen.line + ", column " + openParen.column);
-
-            Token bodyStart = peek();
-            advance();
-            consumeBalanced("{", "}", bodyStart);
-
-            String methodSource = source.substring(startOffset, prev().end).trim();
-            return new MethodReadResult(hasAccessModifier ? methodSource : methodSource, name.text);
-        }
-
-        private String readVariable(int startOffset) throws KanvasException {
-            int parenDepth = 0;
-            int braceDepth = 0;
-            int bracketDepth = 0;
-            while (!atEnd()) {
-                Token token = peek();
-                if (token.is("(")) parenDepth++;
-                else if (token.is(")")) parenDepth--;
-                else if (token.is("{")) braceDepth++;
-                else if (token.is("}")) braceDepth--;
-                else if (token.is("[")) bracketDepth++;
-                else if (token.is("]")) bracketDepth--;
-                else if (token.is(";") && parenDepth == 0 && braceDepth == 0 && bracketDepth == 0) {
-                    advance();
-                    return source.substring(startOffset, prev().end).trim();
-                }
-
-                if (parenDepth < 0 || braceDepth < 0 || bracketDepth < 0) {
-                    throw new KanvasException("Unbalanced declaration at line " + token.line + ", column " + token.column);
-                }
-                advance();
-            }
-            throw new KanvasException("Expected ';' after variable declaration at line " + prev().line + ", column " + prev().column);
-        }
-
-        private String readUntilSemicolon(int startOffset) throws KanvasException {
-            while (!atEnd()) {
-                if (peek().is(";")) { advance();
-                    return source.substring(startOffset, prev().end).trim();
-                } advance();
-            } throw new KanvasException("Expected ';' at line " + prev().line + ", column " + prev().column);
-        }
-
-        private void consumeBalanced(String open, String close, Token start) throws KanvasException {
-            int depth = 1;
-            while (!atEnd()) {
-                Token token = peek();
-                if (token.is(open)) depth++;
-                else if (token.is(close)) depth--;
-                advance();
-                if (depth == 0) return;
-            }
-            throw new KanvasException("Expected matching '" + close + "' at line " + start.line + ", column " + start.column);
-        }
-
-        private boolean nextMemberCanHaveBody(Token token) {
-            return token.is(")") || isNameToken(token) || token.type == TokenType.KEYWORD;
-        }
-
-        private boolean isNameToken(Token token) {
-            return token.type == TokenType.IDENTIFIER || token.type == TokenType.KEYWORD;
-        }
-
-        private Token prevSig(int fromIndex) {
-            for (int i = fromIndex - 1; i >= 0; i--) {
-                Token token = tokens.get(i);
-                if (token.type != TokenType.COMMENT) return token;
-            }
-            return null;
-        }
-
-        private Token nextSig(int fromIndex) {
-            for (int i = fromIndex + 1; i < tokens.size(); i++) {
-                Token token = tokens.get(i);
-                if (token.type != TokenType.COMMENT) return token;
-            }
-            return null;
-        }
-
-        private void skipComments() {
-            while (peek().type == TokenType.COMMENT) advance();
-        }
-
-        private boolean atEnd() {
-            return peek().type == TokenType.EOF;
-        }
-
-        private Token peek() {
-            return tokens.get(index);
-        }
-
-        private Token prev() {
-            return tokens.get(index - 1);
-        }
-
-        private void advance() {
-            if (!atEnd()) index++;
-        }
-
-    }
-
-    private static class MemberKind {
-        final boolean method;
-        final String name;
-
-        MemberKind(boolean method, String name) {
-            this.method = method;
-            this.name = name;
-        }
-    }
-
-    private static class MethodReadResult {
-        final String source;
-        final String name;
-
-        MethodReadResult(String source, String name) {
-            this.source = source;
-            this.name = name;
-        }
+        return sb.toString();
     }
 }

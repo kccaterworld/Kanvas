@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.stream.*;
 
 public class KanvasPreprocessor {
-    private static final String GENERATED_PACKAGE = Preprocessor.DEFAULT_PACKAGE;
+    private static final String GENERATED_PACKAGE = Preprocessor1.DEFAULT_PACKAGE;
 
     public static List<Path> preprocess(File configFile) throws KanvasException {
         Config config = ConfigLoader.loadConfig(configFile);
@@ -30,7 +30,7 @@ public class KanvasPreprocessor {
         }
         List<Path> generatedJavaFiles = new ArrayList<>();
         for (File kvsFile : kvsFiles) {
-            String generatedJavaFile = new Preprocessor(kvsFile).transpile();
+            String generatedJavaFile = new Preprocessor1(kvsFile).transpile();
             if (!generatedDir.toFile().exists()) {
                 try { Files.createDirectories(generatedDir); }
                 catch (Exception e) { throw new KanvasException("Error occurred while creating output directory: " + generatedDir, e); }
@@ -44,6 +44,6 @@ public class KanvasPreprocessor {
     }
 
     private static String getName(File kvsFile) {
-        return Preprocessor.classNameFor(kvsFile.getName().replaceFirst("[.][^.]+$", "")) + ".java";
+        return Preprocessor1.classNameFor(kvsFile.getName().replaceFirst("[.][^.]+$", "")) + ".java";
     }
 }
