@@ -24,7 +24,7 @@ public class KanvasInstaller {
 
     private static void installWindows(Path dir, Path jarPath) throws IOException {
         Path bat = dir.resolve("kanvas.bat");
-        String content = "@echo off\r\njava --enable-native-access=ALL-UNNAMED -jar \"" + jarPath.toAbsolutePath() + "\" %*\r\n";
+        String content = "@echo off\r\njava -jar \"" + jarPath.toAbsolutePath() + "\" %*\r\n";
         if (Files.exists(bat) && Files.readString(bat).equals(content)) {
             System.out.println(Text.style("Already up to date: " + bat.toAbsolutePath(), "green"));
             return;
@@ -35,7 +35,7 @@ public class KanvasInstaller {
 
     private static void installUnix(Path dir, Path jarPath) throws IOException {
         Path script = dir.resolve("kanvas");
-        String content = "#!/usr/bin/env sh\njava --enable-native-access=ALL-UNNAMED -jar \"" + jarPath.toAbsolutePath() + "\" \"$@\"\n";
+        String content = "#!/usr/bin/env sh\njava -jar \"" + jarPath.toAbsolutePath() + "\" \"$@\"\n";
         if (Files.exists(script) && Files.readString(script).equals(content)) {
             System.out.println(Text.style("Already up to date: " + script.toAbsolutePath(), "green"));
             return;

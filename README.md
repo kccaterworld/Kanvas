@@ -5,7 +5,9 @@
 
 Kanvas is a creative coding and rendering toolkit for Java. You can create, configure, build, and package visual projects using a simple CLI, project templates, and a preprocessor for sketch syntax. It's intended to be easy to learn while offering customizability and power for more complex projects.
 
-Kanvas is officially in alpha stage, which is a big milestone for me, but users should still expect bugs, missing features, and breaking changes as I continue development. The core features are in place, but there's a lot more to build out before it's ready for production use. Feedback and contributions are very welcome! Please feel free to open issues or submit pull requests on GitHub.
+Kanvas is nowhere near production ready, so users should still expect bugs, missing features, and breaking changes as I continue development. Some core features are in place, but there's a lot more to build out before it's ready for production use. Feedback and contributions are very welcome! Please feel free to open issues or submit pull requests on GitHub.
+
+Currently requires Java 21 or later to build and run.
 
 ## Features
 

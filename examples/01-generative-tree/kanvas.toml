@@ -12,7 +12,7 @@ srcDirs = ["src"]
 outputDir = "build/classes"
 
 [compiler]
-target = "11"
+target = "21"
 encoding = "UTF-8"
 
 [packaging]

@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "22"
+          java-version: "21"
 
       - name: Compile
         run: ./compile.sh
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "22"
+          java-version: "21"
 
       - name: Download kanvas.jar
         uses: actions/download-artifact@v4
@@ -56,4 +56,4 @@ jobs:
 
       - name: Build ${{ matrix.sketch }}
         working-directory: testing/${{ matrix.sketch }}
-        run: java --enable-native-access=ALL-UNNAMED -jar ../../build/kanvas.jar build
+        run: java -jar ../../build/kanvas.jar build
