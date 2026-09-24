@@ -8,15 +8,17 @@ Usage:
     kanvas --theme <theme>
 
 Commands:
-    create      Create a new project in the current directory
-    list-types  Show available project templates
-    config      Print the effective kanvas.json after CLI overrides
-    run         Run the project in the current directory
-    help        Show this help message
-    exit        Exit the interactive menu
+    create          Create a new project in the current directory
+    list-types      Show available project templates
+    config          Print the effective kanvas.toml after CLI overrides
+    run             Run the project in the current directory
+    help            Show this help message
+    exit            Exit the interactive menu
+    build <profile> Build the project with the selected profile
+    install         Initialized terminal command and path
 
 Create options:
-    --type      Project template: kanvas-sketch, java-app, java-lib, mixed-project, empty
+    --type          Project template: kanvas-sketch, java-app, java-lib, mixed-project, empty
 
 Config override options:
     --target, --encoding, --main-class, --jar-name, --package-version, --icon
