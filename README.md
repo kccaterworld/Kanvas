@@ -14,10 +14,14 @@ Kanvas is officially in alpha stage, which is a big milestone for me, but users 
 - Preprocess `.kvs` files into Java source code
 - Run sketches with the JVM
 - AWT-backed window with hardware-accelerated rendering via `BufferStrategy`
+- Load and render images with asset-path resolution (`loadImage`, `image()`, `sketchPath()`)
+- Multi-window sketches — each `.kvs` file becomes its own window
+- `PVector`-compatible vectors (`KVector2`/`KVector3`) for physics/game code
+- Full mouse/keyboard input state (`mouseButton`, `keyCode`, arrow/special keys)
 
 ## Upcoming features
 
-- [ ] More drawing features
+- [ ] More drawing features (text rendering, bezier/curve functions, HSB color mode)
 - [ ] Math libraries
 - [ ] GPU acceleration (maybe)
 - [ ] Proper test suite and CI workflow
