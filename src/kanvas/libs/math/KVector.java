@@ -67,7 +67,7 @@ public class KVector {
     }
 
     public double magnitude() {
-        return Math.sqrt(magnitudeSquared());
+        return KMath.sqrt(magnitudeSquared());
     }
 
     public KVector normalized() {
