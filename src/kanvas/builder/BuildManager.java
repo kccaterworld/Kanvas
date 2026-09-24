@@ -32,7 +32,14 @@ public class BuildManager {
         Path outputDir = config.getOutput().toPath().resolve("classes");
         List<File> srcDirs = config.getSourceDirectories(),
             javaFiles = new ArrayList<>();
-        for (Path generatedFile : generatedFiles) compileFile(generatedFile, outputDir, classpath);
+
+        // Compile all generated files together so generated classes can
+        // reference each other (multi-window: Main.kvs launches Debug.kvs).
+        try { CompileTool.compileAll(generatedFiles, outputDir, classpath);
+        } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency for generated files: " + e.getMessage(), e);
+        } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + e.getMessage(), e);
+        } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error in generated files", e); }
+
         for (File srcDir : srcDirs) {
             try (Stream<Path> paths = Files.walk(srcDir.toPath())) {
                 javaFiles.addAll(paths.filter(Files::isRegularFile)

@@ -14,6 +14,16 @@ import javax.tools.*;
 public class CompileTool {
     public static void compile(Path source, Path outputDir) throws Exception { compile(source, outputDir, null); }
     public static void compile(Path source, Path outputDir, List<Path> classpath) throws Exception {
+        compileAll(List.of(source), outputDir, classpath);
+    }
+
+    /**
+     * Compiles several source files together in a single javac invocation.
+     * This lets generated classes resolve each other (e.g. a main window
+     * referencing a secondary window class from another .kvs file).
+     */
+    public static void compileAll(List<Path> sources, Path outputDir, List<Path> classpath) throws Exception {
+        if (sources == null || sources.isEmpty()) return;
         if (!checkCanRun()) throw new KanvasCompileException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         List<String> args = new ArrayList<>();
@@ -25,9 +35,9 @@ public class CompileTool {
                 .map(p -> p.toAbsolutePath().toString())
                 .reduce((a, b) -> a + java.io.File.pathSeparator + b).get());
         }
-        args.add(source.toAbsolutePath().toString());
+        for (Path source : sources) args.add(source.toAbsolutePath().toString());
         boolean status = 0 == compiler.run(null, null, null, args.toArray(new String[0]));
-        if (!status) throw new KanvasCompileException("Compilation failed for " + source);
+        if (!status) throw new KanvasCompileException("Compilation failed for " + sources);
     }
     public static boolean checkCanRun() { return ToolProvider.getSystemJavaCompiler() != null; }
 
