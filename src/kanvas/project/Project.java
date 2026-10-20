@@ -3,7 +3,7 @@ package kanvas.project;
 import java.util.*;
 import java.nio.file.Path;
 
-public record Project(String name, String version, int configVersion,
+public record Project(String name, String version, int configVersion, Path scriptDir,
 
         List<Path> entryPoints,
         List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
@@ -21,6 +21,7 @@ public record Project(String name, String version, int configVersion,
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(version, "version");
         if (configVersion < 1) throw new IllegalArgumentException("configVersion must be positive, got " + configVersion);
+        Objects.requireNonNull(scriptDir, "scriptDir");
         entryPoints = List.copyOf(entryPoints);
         sourceRoots = List.copyOf(sourceRoots);
         resourceRoots = List.copyOf(resourceRoots);
