@@ -1,5 +1,7 @@
 package kanvas.builder;
 
+import kanvas.project.Project.CompilerSettings;
+
 import java.nio.file.*;
 import java.util.*;
 import javax.tools.*;
@@ -12,9 +14,8 @@ import javax.tools.*;
  * fah
  */
 public class CompileTool {
-    public static void compile(Path source, Path outputDir) throws Exception { compile(source, outputDir, null); }
-    public static void compile(Path source, Path outputDir, List<Path> classpath) throws Exception {
-        compileAll(List.of(source), outputDir, classpath);
+    public static void compile(Path source, Path outputDir, List<Path> classpath, CompilerSettings settings) throws Exception {
+        compileAll(List.of(source), outputDir, classpath, settings);
     }
 
     /**
@@ -22,13 +23,18 @@ public class CompileTool {
      * This lets generated classes resolve each other (e.g. a main window
      * referencing a secondary window class from another .kvs file).
      */
-    public static void compileAll(List<Path> sources, Path outputDir, List<Path> classpath) throws Exception {
+    public static void compileAll(List<Path> sources, Path outputDir, List<Path> classpath, CompilerSettings settings) throws Exception {
         if (sources == null || sources.isEmpty()) return;
         if (!checkCanRun()) throw new KanvasCompileException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         List<String> args = new ArrayList<>();
         args.add("-d");
         args.add(outputDir.toAbsolutePath().toString());
+        args.add("--release");
+        args.add(String.valueOf(settings.target()));
+        args.add("-encoding");
+        args.add(settings.encoding());
+        args.addAll(settings.flags());
         if (classpath != null && !classpath.isEmpty()) {
             args.add("-cp");
             args.add(classpath.stream()
