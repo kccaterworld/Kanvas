@@ -61,6 +61,18 @@ chmod +x compile.sh kanvas
 
 Then run `build/kanvas.jar` with whatever flags you want
 
+To run the test suite (JUnit 5, downloaded into `build/lib/` on first run):
+
+```powershell
+.\test.ps1      # Windows
+```
+
+```bash
+bash test.sh    # macOS / Linux
+```
+
+Unit tests live in `tests/unit/`, and the sketch projects they build live in `tests/projects/`.
+
 ### 2. Set up the `kanvas` command
 
 Run the built-in install command, which generates the appropriate wrapper for your platform and prints PATH instructions:
