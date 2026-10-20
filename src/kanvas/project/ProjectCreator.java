@@ -24,6 +24,13 @@ public class ProjectCreator {
         return TEMPLATE_ORDER;
     }
 
+    public static List<Path> existingFiles(String projectName, String templateType, String outputPath) {
+        List<String> files = TEMPLATE_FILES.get(templateType == null || templateType.isBlank() ? "kanvas-sketch" : templateType);
+        if (files == null || projectName == null || projectName.isBlank()) return List.of();
+        Path projectDir = Paths.get(outputPath == null ? "." : outputPath).resolve(projectName).normalize();
+        return files.stream().map(projectDir::resolve).filter(Files::exists).toList();
+    }
+
     public static void createProject(String projectName, String templateType, String outputPath) throws KanvasException { createProject(projectName, templateType, outputPath, false); }
     public static void createProject(String projectName, String templateType, String outputPath, boolean force) throws KanvasException {
         if (projectName == null || projectName.isBlank()) throw new KanvasProjectException("Please provide a project name");
@@ -32,6 +39,9 @@ public class ProjectCreator {
         if (templateType == null || templateType.isBlank()) templateType = "kanvas-sketch";
         if (!templateType.matches("[A-Za-z0-9_-]+") || !TEMPLATE_FILES.containsKey(templateType))
             throw new KanvasProjectException("Template '" + templateType + "' not found. Available templates: " + String.join(", ", TEMPLATE_ORDER));
+        List<Path> existing = existingFiles(projectName, templateType, outputPath);
+        if (!force && !existing.isEmpty())
+            throw new KanvasProjectException("Project '" + projectName + "' already exists and these files would be overwritten: " + existing.stream().map(Path::toString).collect(java.util.stream.Collectors.joining(", ")));
         System.out.println(Text.style("Creating project: " + projectName, "green"));
         Path baseDir = Paths.get(outputPath == null ? "." : outputPath);
         Path template = Paths.get("kanvas", "assets", "templates", templateType);
@@ -46,7 +56,7 @@ public class ProjectCreator {
                 while (paths.hasNext()) copyDirectory(paths.next(), template, projectDir, force);
                 System.out.println(Text.style("Project copied successfully!", "green"));
             } catch (IOException e) { throw new RuntimeException("Failed to create project from template: " + e.getMessage(), e); }
-        } else copyBundledTemplate(templateType, projectDir);
+        } else copyBundledTemplate(templateType, projectDir, force);
         ensureProjectDirectories(projectDir);
         Path configPath = projectDir.resolve("kanvas.toml");
         try {
@@ -88,14 +98,15 @@ public class ProjectCreator {
         } catch (IOException e) { throw new RuntimeException("Failed to create project structure: " + e.getMessage(), e); }
     }
 
-    private static void copyBundledTemplate(String templateType, Path projectDir) {
+    private static void copyBundledTemplate(String templateType, Path projectDir, boolean force) {
         for (String file : TEMPLATE_FILES.get(templateType)) {
             String resource = "/kanvas/assets/templates/" + templateType + "/" + file;
             Path target = projectDir.resolve(file);
             try (InputStream input = ProjectCreator.class.getResourceAsStream(resource)) {
                 if (input == null) throw new IllegalArgumentException("Template resource not found: " + resource);
                 if (target.getParent() != null) Files.createDirectories(target.getParent());
-                Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                if (force) Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                else Files.copy(input, target);
             } catch (IOException e) { throw new RuntimeException("Failed to copy template resource: " + resource, e); }
         }
         System.out.println(Text.style("Project copied successfully!", "green"));
