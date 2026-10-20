@@ -85,31 +85,67 @@ public class Main {
     }
 
     // Map --flag to the kanvas.toml thing getting overrode.
-    private static Map<String, String> parseOverrides(String[] args, int start) {
+    private static final Map<String, String> OVERRIDE_FLAGS = Map.ofEntries(
+        Map.entry("name", "name"), Map.entry("version", "version"),
+        Map.entry("author", "author"), Map.entry("description", "description"),
+        Map.entry("main-class", "mainClass"),
+        Map.entry("classpath", "classpath"), Map.entry("dependencies", "dependencies"),
+        Map.entry("target", "compiler.target"), Map.entry("encoding", "compiler.encoding"),
+        Map.entry("src-dirs", "modules.srcDirs"), Map.entry("resource-dirs", "modules.resourceDirs"), Map.entry("build-dir", "modules.buildDir"),
+        Map.entry("jar-name", "packaging.jarName"), Map.entry("icon", "packaging.icon"),
+        Map.entry("native-targets", "packaging.nativeTargets"), Map.entry("format", "packaging.format"));
+    private static final Map<String, String> REMOVED_FLAGS = Map.of(
+        "output-dir", "--output-dir was replaced by --build-dir",
+        "package-version", "--package-version was removed: packaging uses the project version");
+
+    // toss bad flags
+    private static Map<String, String> parseOverrides(String[] args, int start) throws KanvasException {
         Map<String, String> overrides = new HashMap<>();
+        List<String> errors = new ArrayList<>();
         for (int i = start; i < args.length; i++) {
             if (!args[i].startsWith("--")) continue;
-            String key = args[i].substring(2);
-            String value = (i + 1 < args.length && !args[i + 1].startsWith("--")) ? args[++i] : "";
-            String tomlKey = switch (key) {
-                case "name", "version", "author", "description", "classpath", "dependencies" -> key;
-                case "main-class" -> "mainClass";
-                case "target" -> "compiler.target";
-                case "encoding" -> "compiler.encoding";
-                case "src-dirs" -> "modules.srcDirs";
-                case "resource-dirs" -> "modules.resourceDirs";
-                case "build-dir" -> "modules.buildDir";
-                case "jar-name" -> "packaging.jarName";
-                case "icon" -> "packaging.icon";
-                case "native-targets" -> "packaging.nativeTargets";
-                case "format" -> "packaging.format";
-                case "output-dir" -> throw new IllegalArgumentException("--output-dir was replaced by --build-dir");
-                case "package-version" -> throw new IllegalArgumentException("--package-version was removed: packaging uses the project version");
-                default -> throw new IllegalArgumentException("Unknown override: --" + key);
-            };
-            overrides.put(tomlKey, value);
+            String key = args[i].substring(2), value;
+            int equals = key.indexOf('=');
+            if (equals >= 0) {
+                value = key.substring(equals + 1);
+                key = key.substring(0, equals);
+            }
+            else value = (i + 1 < args.length && !args[i + 1].startsWith("--")) ? args[++i] : "";
+            if (OVERRIDE_FLAGS.containsKey(key)) overrides.put(OVERRIDE_FLAGS.get(key), value);
+            else if (REMOVED_FLAGS.containsKey(key)) errors.add(REMOVED_FLAGS.get(key));
+            else errors.add("Unknown option --" + key + closestFlag(key).map(flag -> ". Did you mean --" + flag + "?").orElse(""));
         }
+        if (errors.size() == 1) throw new KanvasException(errors.get(0) + " (see `kanvas help` for the options)");
+        if (!errors.isEmpty()) throw new KanvasException(errors.size() + " problems with the options (see `kanvas help`):\n  - " + String.join("\n  - ", errors));
         return overrides;
+    }
+
+    // suggest close flags
+    private static Optional<String> closestFlag(String typed) {
+        String best = null;
+        int bestDistance = 3;
+        for (String flag : new TreeSet<>(OVERRIDE_FLAGS.keySet())) {
+            int distance = editDistance(typed, flag);
+            if (distance < bestDistance) {
+                best = flag;
+                bestDistance = distance;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private static int editDistance(String a, String b) {
+        int[] previous = new int[b.length() + 1], current = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++) previous[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            current[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int substitution = previous[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1);
+                current[j] = Math.min(substitution, Math.min(previous[j], current[j - 1]) + 1);
+            }
+            int[] swap = previous; previous = current; current = swap;
+        }
+        return previous[b.length()];
     }
 
     private static void printTemplateTypes() {
