@@ -1,8 +1,7 @@
 package kanvas.cli;
 
 import kanvas.KanvasException;
-import kanvas.config.ConfigLoader;
-import kanvas.project.ProjectCreator;
+import kanvas.project.*;
 import kanvas.builder.BuildManager;
 import kanvas.runtime.KanvasRunner;
 
@@ -48,16 +47,17 @@ public class Main {
                     project = args[1];
                     overrideStart = 2;
                 }
-                System.out.print(ConfigLoader.loadConfig(project, parseOverrides(args, overrideStart)).toTOMLString());
+                try { System.out.print(ProjectWriter.write(ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get(project)), parseOverrides(args, overrideStart)))); }
+                catch (KanvasException e) { System.out.println(Text.style("Config failed: " + e.getMessage(), "red")); System.exit(1); }
                 break;
             }
             case "build": {
-                try { new BuildManager(resolveConfigPath()).build(); }
+                try { new BuildManager(loadProject()).build(); }
                 catch (KanvasException e) { System.out.println(Text.style("Build failed: " + e.getMessage(), "red")); System.exit(1); }
                 break;
             }
             case "run": {
-                try { KanvasRunner.run(resolveConfigPath()); }
+                try { KanvasRunner.run(loadProject()); }
                 catch (KanvasException e) { System.out.println(Text.style("Run failed: " + e.getMessage(), "red")); System.exit(1); }
                 break;
             }
@@ -84,30 +84,30 @@ public class Main {
         };
     }
 
+    // Map --flag to the kanvas.toml thing getting overrode.
     private static Map<String, String> parseOverrides(String[] args, int start) {
         Map<String, String> overrides = new HashMap<>();
         for (int i = start; i < args.length; i++) {
             if (!args[i].startsWith("--")) continue;
             String key = args[i].substring(2);
             String value = (i + 1 < args.length && !args[i + 1].startsWith("--")) ? args[++i] : "";
-            switch (key) {
-                case "name": overrides.put("name", value); break;
-                case "version": overrides.put("version", value); break;
-                case "author": overrides.put("author", value); break;
-                case "description": overrides.put("description", value); break;
-                case "main-class": overrides.put("mainClass", value); break;
-                case "target": overrides.put("target", value); break;
-                case "encoding": overrides.put("encoding", value); break;
-                case "output-dir": overrides.put("outputDir", value); break;
-                case "src-dirs": overrides.put("srcDirs", value); break;
-                case "classpath": overrides.put("classpath", value); break;
-                case "dependencies": overrides.put("dependencies", value); break;
-                case "jar-name": overrides.put("jarName", value); break;
-                case "package-version": overrides.put("packageVersion", value); break;
-                case "icon": overrides.put("icon", value); break;
-                case "native-targets": overrides.put("nativeTargets", value); break;
-                default: throw new IllegalArgumentException("Unknown override: --" + key);
-            }
+            String tomlKey = switch (key) {
+                case "name", "version", "author", "description", "classpath", "dependencies" -> key;
+                case "main-class" -> "mainClass";
+                case "target" -> "compiler.target";
+                case "encoding" -> "compiler.encoding";
+                case "src-dirs" -> "modules.srcDirs";
+                case "resource-dirs" -> "modules.resourceDirs";
+                case "build-dir" -> "modules.buildDir";
+                case "jar-name" -> "packaging.jarName";
+                case "icon" -> "packaging.icon";
+                case "native-targets" -> "packaging.nativeTargets";
+                case "format" -> "packaging.format";
+                case "output-dir" -> throw new IllegalArgumentException("--output-dir was replaced by --build-dir");
+                case "package-version" -> throw new IllegalArgumentException("--package-version was removed: packaging uses the project version");
+                default -> throw new IllegalArgumentException("Unknown override: --" + key);
+            };
+            overrides.put(tomlKey, value);
         }
         return overrides;
     }
@@ -119,8 +119,9 @@ public class Main {
             System.out.println("  " + (i++) + ". " + templateType);
     }
 
-    private static Path resolveConfigPath() {
-        return Paths.get("kanvas.toml").toAbsolutePath();
+    // Wrapper for simple find project-ing
+    private static Project loadProject() throws KanvasException {
+        return ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get("")));
     }
 
     private static void printHelp() {
