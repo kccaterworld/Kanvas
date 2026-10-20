@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 public final class TestSupport {
     public static final Path EXAMPLES = Path.of("examples");
     public static final Path TEST_PROJECTS = Path.of("tests", "projects");
-    public static final Path TEMPLATES = Path.of("src", "kanvas", "assets", "templates");
+    public static final Path TEMPLATES = Path.of("resources", "assets", "templates");
 
     private TestSupport() {}
 

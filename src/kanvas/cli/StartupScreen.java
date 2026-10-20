@@ -52,7 +52,7 @@ public final class StartupScreen {
         List<String> logoLines;
         try (InputStream stream = StartupScreen.class.getResourceAsStream("/kanvas/assets/text/logo.txt")) {
             if (stream != null) logoLines = new String(stream.readAllBytes(), StandardCharsets.UTF_8).lines().collect(Collectors.toList());
-            else logoLines = Files.readAllLines(Paths.get("kanvas", "assets", "text", "logo.txt"), StandardCharsets.UTF_8);
+            else logoLines = Files.readAllLines(Paths.get("resources", "assets", "text", "logo.txt"), StandardCharsets.UTF_8);
         } catch (IOException e) { logoLines = Arrays.asList("Failed to load logo."); }
         for (String line : logoLines) screen.append(Text.style(line, theme.borderColor, theme.accentColor)).append("\n");
         screen.append(Text.style("Welcome to Kanvas CLI", theme.titleColor, "bold")).append("\n");

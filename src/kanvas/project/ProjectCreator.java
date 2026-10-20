@@ -44,7 +44,7 @@ public class ProjectCreator {
             throw new KanvasProjectException("Project '" + projectName + "' already exists and these files would be overwritten: " + existing.stream().map(Path::toString).collect(java.util.stream.Collectors.joining(", ")));
         System.out.println(Text.style("Creating project: " + projectName, "green"));
         Path baseDir = Paths.get(outputPath == null ? "." : outputPath);
-        Path template = Paths.get("kanvas", "assets", "templates", templateType);
+        Path template = Paths.get("resources", "assets", "templates", templateType);
         Path projectDir = baseDir.resolve(projectName);
         try {
             Files.createDirectories(projectDir);

@@ -224,7 +224,7 @@ public class Main {
     private static void printHelp() {
         try (InputStream helpStream = Main.class.getResourceAsStream("/kanvas/assets/text/help.txt")) {
             if (helpStream != null) System.out.println(new String(helpStream.readAllBytes(), StandardCharsets.UTF_8));
-            else System.out.println(Files.readString(Paths.get("kanvas", "assets", "text", "help.txt"), StandardCharsets.UTF_8));
+            else System.out.println(Files.readString(Paths.get("resources", "assets", "text", "help.txt"), StandardCharsets.UTF_8));
         } catch (IOException e) { throw new RuntimeException("Failed to read help.txt", e); }
     }
 }
