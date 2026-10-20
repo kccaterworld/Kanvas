@@ -26,16 +26,14 @@ public class ProjectCreator {
 
     public static void createProject(String projectName, String templateType, String outputPath) throws KanvasException { createProject(projectName, templateType, outputPath, false); }
     public static void createProject(String projectName, String templateType, String outputPath, boolean force) throws KanvasException {
-        if (projectName == null || projectName.isBlank()) throw new IllegalArgumentException("Please provide a project name");
+        if (projectName == null || projectName.isBlank()) throw new KanvasProjectException("Please provide a project name");
         if (projectName.equals(".") || projectName.equals("..") || !projectName.matches("[A-Za-z0-9._-]+"))
-            throw new IllegalArgumentException("Project name may only contain letters, numbers, '.', '_', and '-'");
-        System.out.println(Text.style("Creating project: " + projectName, "green"));
+            throw new KanvasProjectException("Project name may only contain letters, numbers, '.', '_', and '-'");
         if (templateType == null || templateType.isBlank()) templateType = "kanvas-sketch";
+        if (!templateType.matches("[A-Za-z0-9_-]+") || !TEMPLATE_FILES.containsKey(templateType))
+            throw new KanvasProjectException("Template '" + templateType + "' not found. Available templates: " + String.join(", ", TEMPLATE_ORDER));
+        System.out.println(Text.style("Creating project: " + projectName, "green"));
         Path baseDir = Paths.get(outputPath == null ? "." : outputPath);
-        if (!templateType.matches("[A-Za-z0-9_-]+") || !TEMPLATE_FILES.containsKey(templateType)) {
-            System.out.printf("Template '%s' not found.\nAvailable templates: %s\n", templateType, String.join(", ", TEMPLATE_ORDER));
-            System.exit(0);
-        }
         Path template = Paths.get("kanvas", "assets", "templates", templateType);
         Path projectDir = baseDir.resolve(projectName);
         try {
