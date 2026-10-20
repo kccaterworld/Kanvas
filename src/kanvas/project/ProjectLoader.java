@@ -1,11 +1,14 @@
 package kanvas.project;
 
+import kanvas.preprocess.Preprocessor;
 import kanvas.project.Project.*;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.stream.Stream;
 
 public class ProjectLoader {
     public static final String CONFIG_FILE = "kanvas.toml";
@@ -20,15 +23,21 @@ public class ProjectLoader {
         throw new KanvasProjectException("No " + CONFIG_FILE + " found in " + start + " or any parent directory");
     }
 
-    public static Project loadProject(Path configPath) throws KanvasProjectException {
-        Path config = configPath.toAbsolutePath().normalize(), scriptDir = config.getParent();
+    public static Project loadProject(Path configPath) throws KanvasProjectException { return loadProject(configPath, Map.of()); }
+
+    public static Project loadProject(Path configPath, Map<String, String> overrides) throws KanvasProjectException {
+        Path config = configPath.toAbsolutePath().normalize();
         String content;
         try { content = Files.readString(config, StandardCharsets.UTF_8);
         } catch (NoSuchFileException e) { throw new KanvasProjectException(CONFIG_FILE + " not found at " + config);
         } catch (IOException e) { throw new KanvasProjectException("Failed to read " + config + ": " + e.getMessage(), e); }
+        return parseProject(content, configPath, overrides);
+    }
 
+    public static Project parseProject(String content, Path configPath, Map<String, String> overrides) throws KanvasProjectException {
+        Path scriptDir = configPath.toAbsolutePath().normalize().getParent();
         List<String> errors = new ArrayList<>();
-        Table root = new Table(TOMLParser.parse(content, configPath.toString()), "", errors);
+        Table root = new Table(TOMLParser.parse(content, configPath.toString()), "", overrides, errors);
 
         int configVersion = root.integer("configVersion", SUPPORTED_CONFIG_VERSION);
         if (!errors.isEmpty()) throw problems(configPath.toString(), errors);
@@ -37,8 +46,8 @@ public class ProjectLoader {
 
         String name = root.requiredString("name");
         String version = root.requiredString("version");
-        root.string("author", null);
-        root.string("description", null);
+        String author = root.string("author", "");
+        String description = root.string("description", "");
         String mainClass = blankToNull(root.string("mainClass", null));
         List<Path> classpath = resolveAll(scriptDir, root.strings("classpath"), "classpath", errors);
         List<String> dependencies = root.strings("dependencies");
@@ -69,23 +78,19 @@ public class ProjectLoader {
         Path icon = iconName == null ? null : resolve(scriptDir, iconName, "packaging.icon", errors);
         List<String> nativeTargets = packaging.strings("nativeTargets");
         PACKAGE_FORMAT format = packageFormat(packaging.string("format", null), errors);
-        packaging.ignore("version"); // duplicates the top-level version
+        packaging.ignore("version"); // duplicates the top-level version; still present in older kanvas.toml files
 
         for (Table table : List.of(root, modules, compiler, runtime, packaging)) table.reportUnknownKeys();
         if (!errors.isEmpty()) throw problems(configPath.toString(), errors);
 
-        Path libDir = scriptDir.resolve("lib");
-        List<Path> runtimeClasspath = new ArrayList<>(classpath);
-        for (String dependency : dependencies) runtimeClasspath.add(libDir.resolve(dependency).normalize());
-
-        return new Project(name, version, configVersion, scriptDir,
-            List.of(),
-            sourceRoots, resourceRoots, List.of(libDir),
+        return new Project(name, version, author, description, configVersion, scriptDir,
+            entryPoints(mainClass, sourceRoots),
+            sourceRoots, resourceRoots, List.of(scriptDir.resolve("lib")),
             BuildLayout.under(buildDir),
             dependencies,
             Map.of(),
             new CompilerSettings(target, encoding, flags),
-            new RuntimeSettings(mainClass, runtimeClasspath, jvmArgs, env, programArgs),
+            new RuntimeSettings(mainClass, classpath, jvmArgs, env, programArgs),
             new PackagingSettings(jarName, icon, nativeTargets, format));
     }
 
@@ -95,9 +100,36 @@ public class ProjectLoader {
             if (!Files.isDirectory(sourceRoot)) errors.add("Source directory not found: " + sourceRoot);
         for (Path entry : project.runtimeSettings().classpath())
             if (!Files.exists(entry)) errors.add("Classpath entry not found: " + entry);
+        for (Path jar : project.dependencyClasspath())
+            if (!Files.isRegularFile(jar)) errors.add("Dependency '" + jar.getFileName() + "' not found in " + jar.getParent());
         Path icon = project.packagingSettings().icon();
         if (icon != null && !Files.isRegularFile(icon)) errors.add("Icon not found: " + icon);
         if (!errors.isEmpty()) throw problems("Project '" + project.name() + "'", errors);
+    }
+
+    // A Java class lives at <srcDir>/com/example/App.java; a sketch class comes from the .kvs file whose name maps to it
+    // (main.kvs -> kanvas.generated.Main). A mainClass from a dependency JAR has no entry point here.
+    private static List<Path> entryPoints(String mainClass, List<Path> sourceRoots) {
+        if (mainClass == null) return List.of();
+        for (Path root : sourceRoots) {
+            Path javaFile = root.resolve(mainClass.replace('.', '/') + ".java");
+            if (Files.isRegularFile(javaFile)) return List.of(javaFile);
+        }
+        String generatedPrefix = Preprocessor.DEFAULT_PACKAGE + ".";
+        String sketchClass = mainClass.startsWith(generatedPrefix) ? mainClass.substring(generatedPrefix.length()) : mainClass;
+        if (sketchClass.contains(".")) return List.of();
+        for (Path root : sourceRoots) {
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                Optional<Path> sketch = files
+                    .filter(file -> file.getFileName().toString().endsWith(".kvs") && Files.isRegularFile(file))
+                    .filter(file -> Preprocessor.classNameFor(file.getFileName().toString().replaceFirst("[.][^.]+$", "")).equals(sketchClass))
+                    .sorted()
+                    .findFirst();
+                if (sketch.isPresent()) return List.of(sketch.get());
+            } catch (IOException | UncheckedIOException e) { /* unreadable source root: the build reports it */ }
+        }
+        return List.of();
     }
 
     private static PACKAGE_FORMAT packageFormat(String value, List<String> errors) {
@@ -140,12 +172,14 @@ public class ProjectLoader {
     private static final class Table {
         private final Map<String, Object> values;
         private final String prefix;
+        private final Map<String, String> overrides;
         private final List<String> errors;
         private final Set<String> known = new HashSet<>();
 
-        public Table(Map<String, Object> values, String prefix, List<String> errors) {
+        public Table(Map<String, Object> values, String prefix, Map<String, String> overrides, List<String> errors) {
             this.values = values;
             this.prefix = prefix;
+            this.overrides = overrides;
             this.errors = errors;
         }
 
@@ -165,7 +199,7 @@ public class ProjectLoader {
 
         public String requiredString(String key) {
             String value = string(key, null);
-            if (!values.containsKey(key)) errors.add(path(key) + " is required");
+            if (raw(key) == null) errors.add(path(key) + " is required");
             else if (value != null && value.isBlank()) errors.add(path(key) + " must not be empty");
             return value;
         }
@@ -183,6 +217,10 @@ public class ProjectLoader {
         public List<String> strings(String key) { return strings(key, List.of()); }
 
         public List<String> strings(String key, List<String> fallback) {
+            if (overridden(key)) {
+                known.add(key);
+                return Arrays.stream(overrides.get(path(key)).split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+            }
             Object value = take(key);
             if (value == null) return fallback;
             if (!(value instanceof List<?> list)) return mismatch(key, "an array of strings", value, fallback);
@@ -196,8 +234,9 @@ public class ProjectLoader {
 
         public List<String> requiredStrings(String key) {
             List<String> result = strings(key);
-            if (!values.containsKey(key)) errors.add(path(key) + " is required");
-            else if (values.get(key) instanceof List<?> list && list.isEmpty()) errors.add(path(key) + " must list at least one entry");
+            Object raw = raw(key);
+            if (raw == null) errors.add(path(key) + " is required");
+            else if (overridden(key) ? result.isEmpty() : raw instanceof List<?> list && list.isEmpty()) errors.add(path(key) + " must list at least one entry");
             return result;
         }
 
@@ -216,9 +255,9 @@ public class ProjectLoader {
         @SuppressWarnings("unchecked")
         public Table table(String key) {
             Object value = take(key);
-            if (value instanceof Map<?, ?> map) return new Table((Map<String, Object>) map, path(key), errors);
+            if (value instanceof Map<?, ?> map) return new Table((Map<String, Object>) map, path(key), overrides, errors);
             if (value != null) mismatch(key, "a table", value, null);
-            return new Table(Map.of(), path(key), errors);
+            return new Table(Map.of(), path(key), overrides, errors);
         }
 
         public void reportUnknownKeys() {
@@ -226,9 +265,14 @@ public class ProjectLoader {
                 if (!known.contains(key)) errors.add("Unknown key '" + path(key) + "'");
         }
 
+        private boolean overridden(String key) { return overrides.containsKey(path(key)); }
+
+        // The override if there is one, otherwise the file's value.
+        private Object raw(String key) { return overridden(key) ? overrides.get(path(key)) : values.get(key); }
+
         private Object take(String key) {
             known.add(key);
-            return values.get(key);
+            return raw(key);
         }
 
         private <T> T mismatch(String key, String expected, Object found, T fallback) {
