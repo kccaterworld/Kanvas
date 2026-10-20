@@ -1,3 +1,4 @@
+configVersion = 1
 name = "interactive-demo"
 version = "1.0.0"
 author = "Kanvas"
@@ -9,13 +10,8 @@ dependencies = []
 
 [modules]
 srcDirs = ["src"]
-outputDir = "build/classes"
+buildDir = "build"
 
 [compiler]
-target = "21"
+target = 21
 encoding = "UTF-8"
-
-[packaging]
-jarName = "interactive-demo.jar"
-version = "0.1.0"
-nativeTargets = ["windows", "macos", "linux"]
