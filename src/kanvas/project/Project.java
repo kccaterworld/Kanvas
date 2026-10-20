@@ -3,7 +3,7 @@ package kanvas.project;
 import java.util.*;
 import java.nio.file.Path;
 
-public record Project(String name, String version, int configVersion, Path scriptDir,
+public record Project(String name, String version, String author, String description, int configVersion, Path scriptDir,
 
         List<Path> entryPoints,
         List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
@@ -20,6 +20,8 @@ public record Project(String name, String version, int configVersion, Path scrip
     public Project {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(version, "version");
+        Objects.requireNonNull(author, "author");
+        Objects.requireNonNull(description, "description");
         if (configVersion < 1) throw new IllegalArgumentException("configVersion must be positive, got " + configVersion);
         Objects.requireNonNull(scriptDir, "scriptDir");
         entryPoints = List.copyOf(entryPoints);
@@ -28,10 +30,23 @@ public record Project(String name, String version, int configVersion, Path scrip
         dependencyRoots = List.copyOf(dependencyRoots);
         Objects.requireNonNull(buildLayout, "buildLayout");
         dependencyDeclarations = List.copyOf(dependencyDeclarations);
+        if (!dependencyDeclarations.isEmpty() && dependencyRoots.isEmpty()) throw new IllegalArgumentException("dependencies are declared but there is no dependency root to find them in");
         profiles = Map.copyOf(profiles);
         Objects.requireNonNull(compilerSettings, "compilerSettings");
         Objects.requireNonNull(runtimeSettings, "runtimeSettings");
         Objects.requireNonNull(packagingSettings, "packagingSettings");
+    }
+
+    public List<Path> dependencyClasspath() {
+        if (dependencyDeclarations.isEmpty()) return List.of();
+        Path lib = dependencyRoots.getFirst();
+        return dependencyDeclarations.stream().map(dependency -> lib.resolve(dependency).normalize()).toList();
+    }
+
+    public List<Path> userClasspath() {
+        List<Path> classpath = new ArrayList<>(runtimeSettings.classpath());
+        classpath.addAll(dependencyClasspath());
+        return List.copyOf(classpath);
     }
 
     public record BuildLayout(Path root,
@@ -64,7 +79,7 @@ public record Project(String name, String version, int configVersion, Path scrip
         public static CompilerSettings defaults() { return new CompilerSettings(DEFAULT_TARGET, DEFAULT_ENCODING, List.of()); }
     }
 
-    // mainClass is null for projects with nothing to run, such as libraries
+    // mainClass is null for projects with nothing to run, such as libraries.
     public record RuntimeSettings(String mainClass, List<Path> classpath,
             List<String> jvmArgs, Map<String, String> envVars, List<String> programArgs) {
         public RuntimeSettings {
