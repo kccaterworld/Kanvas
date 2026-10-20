@@ -15,7 +15,6 @@ mapfile -d '' JAVA_SOURCES < <(
   find ./src/kanvas \
     -type f \
     -name '*.java' \
-    ! -path '*/assets/templates/*' \
     -print0
 )
 
@@ -26,7 +25,7 @@ fi
 
 javac --release 21 -d "$CLASSES_DIR" "${JAVA_SOURCES[@]}"
 
-cp -r src/kanvas/assets "$CLASSES_DIR/kanvas/"
+cp -r resources/assets "$CLASSES_DIR/kanvas/"
 
 jar --create \
   --file "$JAR_FILE" \
