@@ -3,22 +3,15 @@ package kanvas.project;
 import java.util.*;
 import java.nio.file.Path;
 
-public record Project(
-    String name,
-    String version,
-    int configVersion,
+public record Project(String name, String version, int configVersion,
 
-    List<Path> entryPoints,
-    List<Path> sourceRoots,
-    List<Path> resourceRoots,
-    List<Path> dependencyRoots,
-    BuildLayout buildLayout,
-    List<String> dependencyDeclarations,
-    Map<String, Profile> profiles,
+        List<Path> entryPoints,
+        List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
+        BuildLayout buildLayout,
+        List<String> dependencyDeclarations,
+        Map<String, Profile> profiles,
 
-    CompilerSettings compilerSettings,
-    RuntimeSettings runtimeSettings,
-    PackagingSettings packagingSettings
+        CompilerSettings compilerSettings, RuntimeSettings runtimeSettings, PackagingSettings packagingSettings
 ) {
     public static final int DEFAULT_TARGET = 21;
     public static final String DEFAULT_ENCODING = "UTF-8";
@@ -41,8 +34,8 @@ public record Project(
     }
 
     public record BuildLayout(Path root,
-        Path generated, Path classes,
-        Path resources, Path output ) {
+            Path generated, Path classes,
+            Path resources, Path output) {
         public BuildLayout {
             Objects.requireNonNull(root, "root");
             Objects.requireNonNull(generated, "generated");
@@ -61,7 +54,7 @@ public record Project(
     }
 
     public record CompilerSettings(int target,
-        String encoding, List<String> flags ) {
+            String encoding, List<String> flags) {
         public CompilerSettings {
             if (target < 1) throw new IllegalArgumentException("target must be positive, got " + target);
             Objects.requireNonNull(encoding, "encoding");
@@ -70,10 +63,10 @@ public record Project(
         public static CompilerSettings defaults() { return new CompilerSettings(DEFAULT_TARGET, DEFAULT_ENCODING, List.of()); }
     }
 
+    // mainClass is null for projects with nothing to run, such as libraries
     public record RuntimeSettings(String mainClass, List<Path> classpath,
-        List<String> jvmArgs, Map<String, String> envVars, List<String> programArgs ) {
+            List<String> jvmArgs, Map<String, String> envVars, List<String> programArgs) {
         public RuntimeSettings {
-            Objects.requireNonNull(mainClass, "mainClass");
             classpath = List.copyOf(classpath);
             jvmArgs = List.copyOf(jvmArgs);
             envVars = Map.copyOf(envVars);
@@ -84,7 +77,7 @@ public record Project(
 
     public enum PACKAGE_FORMAT { THIN, FAT, JAR_AND_DEPS, LAUNCHER }
     public record PackagingSettings(String jarName, Path icon,
-        List<String> nativeTargets, PACKAGE_FORMAT format ) {
+            List<String> nativeTargets, PACKAGE_FORMAT format) {
         public PackagingSettings {
             Objects.requireNonNull(jarName, "jarName");
             nativeTargets = List.copyOf(nativeTargets);
