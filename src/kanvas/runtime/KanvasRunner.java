@@ -1,38 +1,19 @@
 package kanvas.runtime;
 
-import kanvas.config.*;
-import kanvas.gui.KanvasScript;
 import kanvas.KanvasException;
 import kanvas.builder.BuildManager;
+import kanvas.preprocess.Preprocessor;
+import kanvas.project.Project;
 
 import java.nio.file.*;
 import java.io.*;
+import java.util.*;
 
 public class KanvasRunner {
-    public static void run(Path configPath) throws KanvasException {
-        BuildManager buildManager = new BuildManager(configPath);
-        Config config = buildManager.getConfig();
-        buildManager.build();
-        String mainClass = config.getMainClass();
-        if (mainClass == null || mainClass.isBlank())
-            throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
-
-        String sketchClasses = config.getOutput().toPath().resolve("classes").toAbsolutePath().toString();
-        String runtimeClasses = runtimeClasspath();
-        String classpath = runtimeClasses.isEmpty()
-            ? sketchClasses
-            : sketchClasses + File.pathSeparator + runtimeClasses;
-
-        // Shorter stuff like "Main" resolves to "kanvas.generated.Main"
-        String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
-
-        // Let KanvasScript.sketchPath() find assets relative to the project root
-        String projectRoot = configPath.toAbsolutePath().getParent().toString();
-
+    public static void run(Project project) throws KanvasException {
         int exitCode = -1;
         try {
-            exitCode = new ProcessBuilder("java", "-Dkanvas.sketchPath=" + projectRoot, "-cp", classpath, resolvedClass)
-                .inheritIO().start().waitFor();
+            exitCode = buildCommand(project).inheritIO().start().waitFor();
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -41,35 +22,43 @@ public class KanvasRunner {
         if (exitCode != 0) throw new KanvasException("Application exited with non-zero exit code: " + exitCode);
     }
 
-    public static Process launch(Path configPath) throws KanvasException {
-        BuildManager buildManager = new BuildManager(configPath);
-        Config config = buildManager.getConfig();
-        buildManager.build();
-        String mainClass = config.getMainClass();
-        if (mainClass == null || mainClass.isBlank()) throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
-
-        String sketchClasses = config.getOutput().toPath().resolve("classes").toAbsolutePath().toString();
-        String runtimeClasses = runtimeClasspath();
-        String classpath = runtimeClasses.isEmpty() ? sketchClasses : sketchClasses + File.pathSeparator + runtimeClasses;
-        String resolvedClass = mainClass.contains(".") ? mainClass : "kanvas.generated." + mainClass;
-
-        // Let KanvasScript.sketchPath() find assets relative to the project root
-        String projectRoot = configPath.toAbsolutePath().getParent().toString();
-
-        try { return new ProcessBuilder("java", "-Dkanvas.sketchPath=" + projectRoot, "-cp", classpath, resolvedClass)
+    public static Process launch(Project project) throws KanvasException {
+        try { return buildCommand(project)
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start();
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e); }
     }
 
-    // Finds the JAR or class directory that contains the Kanvas runtime classes.
-    private static String runtimeClasspath() {
-        try {
-            java.net.URL location = KanvasScript.class.getProtectionDomain().getCodeSource().getLocation();
-            return Path.of(location.toURI()).toAbsolutePath().toString();
-        } catch (Exception e) {
-            return "";
-        }
+    // build then assemble: java <jvmArgs> -Dkanvas.sketchPath=<project dir> -cp <classpath> <main class> <programArgs>
+    private static ProcessBuilder buildCommand(Project project) throws KanvasException {
+        BuildManager buildManager = new BuildManager(project);
+        buildManager.build();
+        Project.RuntimeSettings runtime = project.runtimeSettings();
+        if (runtime.mainClass() == null) throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
+
+        List<String> classpath = new ArrayList<>();
+        classpath.add(project.buildLayout().classes().toString());
+        for (Path entry : buildManager.compileClasspath()) classpath.add(entry.toString());
+
+        List<String> command = new ArrayList<>();
+        command.add("java");
+        command.addAll(runtime.jvmArgs());
+        command.add("-Dkanvas.sketchPath=" + project.scriptDir());
+        command.add("-cp");
+        command.add(String.join(File.pathSeparator, classpath));
+        command.add(launchClass(project));
+        command.addAll(runtime.programArgs());
+
+        ProcessBuilder process = new ProcessBuilder(command);
+        process.environment().putAll(runtime.envVars());
+        return process;
+    }
+
+    private static String launchClass(Project project) {
+        String mainClass = project.runtimeSettings().mainClass();
+        if (mainClass.contains(".")) return mainClass;
+        boolean javaEntry = project.entryPoints().stream().anyMatch(entry -> entry.getFileName().toString().endsWith(".java"));
+        return javaEntry ? mainClass : Preprocessor.DEFAULT_PACKAGE + "." + mainClass;
     }
 }
