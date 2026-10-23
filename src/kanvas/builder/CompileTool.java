@@ -14,10 +14,6 @@ import javax.tools.*;
  * fah
  */
 public class CompileTool {
-    public static void compile(Path source, Path outputDir, List<Path> classpath, CompilerSettings settings) throws Exception {
-        compileAll(List.of(source), outputDir, classpath, settings);
-    }
-
     /**
      * Compiles several source files together in a single javac invocation.
      * This lets generated classes resolve each other (e.g. a main window
