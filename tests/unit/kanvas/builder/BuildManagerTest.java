@@ -2,6 +2,7 @@ package kanvas.builder;
 
 import kanvas.KanvasException;
 import kanvas.TestSupport;
+import kanvas.preprocess.KanvasPreprocessor;
 import kanvas.project.Project;
 import kanvas.project.ProjectLoader;
 import org.junit.jupiter.api.Test;
@@ -56,9 +57,9 @@ class BuildManagerTest {
         assertFalse(Files.exists(layout.classes().resolve("classes")), "build/classes/classes should not exist");
         try (Stream<Path> sources = Files.walk(copy.resolve("src"))) {
             for (Path kvs : sources.filter(file -> file.toString().endsWith(".kvs")).toList()) {
-                String className = kanvas.preprocess.Preprocessor.classNameFor(kvs.getFileName().toString().replaceFirst("[.][^.]+$", ""));
-                assertTrue(Files.isRegularFile(layout.generated().resolve("kanvas/generated/" + className + ".java")), className + ".java");
-                assertTrue(Files.isRegularFile(layout.classes().resolve("kanvas/generated/" + className + ".class")), className + ".class");
+                String path = KanvasPreprocessor.qualifiedNameFor(copy.resolve("src"), kvs, StandardCharsets.UTF_8).replace('.', '/');
+                assertTrue(Files.isRegularFile(layout.generated().resolve(path + ".java")), path + ".java");
+                assertTrue(Files.isRegularFile(layout.classes().resolve(path + ".class")), path + ".class");
             }
         }
     }
@@ -112,5 +113,50 @@ class BuildManagerTest {
         Project project = build(writeProject(tmp, "name = \"e\"\nversion = \"1\"\n[modules]\nsrcDirs = [\"src\"]\n[compiler]\nencoding = \"ISO-8859-1\"\n"));
         String generated = Files.readString(project.buildLayout().generated().resolve("kanvas/generated/Main.java"), StandardCharsets.ISO_8859_1);
         assertTrue(generated.contains("café"), generated);
+    }
+
+    private static Path sketchProject(Path dir) throws Exception {
+        return writeProject(dir, "name = \"s\"\nversion = \"1\"\n[modules]\nsrcDirs = [\"src\"]\n");
+    }
+
+    @Test
+    void sketchPackagesComeFromTheDeclarationThenTheFolder() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() { new game.entities.Enemy(); new com.levels.Level(); }");
+        writeFile(tmp.resolve("src/game/entities/enemy.kvs"), "void setup() {}");
+        writeFile(tmp.resolve("src/other/level.kvs"), "package com.levels;\nvoid setup() {}");
+        Path classes = build(sketchProject(tmp)).buildLayout().classes();
+
+        for (String name : List.of("kanvas/generated/Main", "game/entities/Enemy", "com/levels/Level"))
+            assertTrue(Files.isRegularFile(classes.resolve(name + ".class")), name);
+        String generated = Files.readString(tmp.resolve("build/generated/game/entities/Enemy.java"));
+        assertTrue(generated.startsWith("package game.entities;"), generated);
+    }
+
+    @Test
+    void sameFileNameInDifferentFoldersCoexists() throws Exception {
+        writeFile(tmp.resolve("src/a/player.kvs"), "int a = 1;");
+        writeFile(tmp.resolve("src/b/player.kvs"), "int b = 2;");
+        Path classes = build(sketchProject(tmp)).buildLayout().classes();
+        assertTrue(Files.isRegularFile(classes.resolve("a/Player.class")));
+        assertTrue(Files.isRegularFile(classes.resolve("b/Player.class")));
+    }
+
+    @Test
+    void twoSketchesCompilingToTheSameClassAreRejected() throws Exception {
+        writeFile(tmp.resolve("src/a/player.kvs"), "void setup() {}");
+        writeFile(tmp.resolve("src/b/player.kvs"), "package a;\nvoid setup() {}");
+        String message = assertThrows(KanvasException.class, () -> build(sketchProject(tmp))).getMessage();
+        assertTrue(message.contains("src/a/player.kvs") && message.contains("src/b/player.kvs") && message.contains("both generate a.Player"), message);
+    }
+
+    @Test
+    void foldersThatAreNotPackageNamesNeedADeclaration() throws Exception {
+        Path sketch = writeFile(tmp.resolve("src/my-stuff/thing.kvs"), "void setup() {}");
+        String message = assertThrows(KanvasException.class, () -> build(sketchProject(tmp))).getMessage();
+        assertTrue(message.contains("src/my-stuff/thing.kvs") && message.contains("'my-stuff' is not a valid Java package name"), message);
+
+        Files.writeString(sketch, "package stuff;\nvoid setup() {}");
+        build(sketchProject(tmp));
+        assertTrue(Files.isRegularFile(tmp.resolve("build/classes/stuff/Thing.class")));
     }
 }

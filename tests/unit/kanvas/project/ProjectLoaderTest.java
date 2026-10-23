@@ -196,11 +196,16 @@ class ProjectLoaderTest {
     void findsEntryPoints() throws Exception {
         Path config = writeProject(tmp, "mainClass = \"MySketch\"\n" + MINIMAL);
         Path dir = tmp.toAbsolutePath().normalize();
-        Path sketch = writeFile(dir.resolve("src/nested/my-sketch.kvs"), "void setup() {}");
+        Path sketch = writeFile(dir.resolve("src/my-sketch.kvs"), "void setup() {}");
+        Path nested = writeFile(dir.resolve("src/game/my-sketch.kvs"), "void setup() {}");
+        Path declared = writeFile(dir.resolve("src/other/level.kvs"), "package com.levels;\nvoid setup() {}");
         Path javaMain = writeFile(dir.resolve("src/com/example/App.java"), "package com.example; public class App {}");
 
         assertEquals(List.of(sketch), ProjectLoader.loadProject(config).entryPoints());
         assertEquals(List.of(sketch), ProjectLoader.loadProject(config, Map.of("mainClass", "kanvas.generated.MySketch")).entryPoints());
+        assertEquals(List.of(nested), ProjectLoader.loadProject(config, Map.of("mainClass", "game.MySketch")).entryPoints());
+        assertEquals(List.of(declared), ProjectLoader.loadProject(config, Map.of("mainClass", "com.levels.Level")).entryPoints());
+        assertEquals(List.of(), ProjectLoader.loadProject(config, Map.of("mainClass", "other.Level")).entryPoints());
         assertEquals(List.of(javaMain), ProjectLoader.loadProject(config, Map.of("mainClass", "com.example.App")).entryPoints());
         assertEquals(List.of(), ProjectLoader.loadProject(config, Map.of("mainClass", "org.library.Main")).entryPoints());
         assertEquals(List.of(), ProjectLoader.loadProject(config, Map.of("mainClass", "")).entryPoints());
