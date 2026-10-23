@@ -1,9 +1,7 @@
 /**
- * Noise Walker - Phase 1 Feature Showcase
- * 
- * Demonstrates:
- * - noise() for creating organic, smooth motion
- * - map() for converting noise values to screen coordinates
+ * Noise Walker
+ * - noise() for creating smooth motion
+ * - map() for mapping noise values to screen coordinates
  * - Random colors and trail effects
  * - Trig functions: radians()
  */

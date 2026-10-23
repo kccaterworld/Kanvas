@@ -1,7 +1,5 @@
 /**
- * Generative Tree - Phase 1 & 2 Feature Showcase
- * 
- * Demonstrates:
+ * Generative Tree Example
  * - noise() for organic randomness
  * - Matrix transforms: pushMatrix/popMatrix, translate, rotate, scale
  * - Recursive structure creation

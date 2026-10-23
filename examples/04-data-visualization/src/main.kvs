@@ -1,7 +1,5 @@
 /**
- * Data Visualization - Phase 2 Feature Showcase
- * 
- * Demonstrates:
+ * Data Visualization
  * - beginShape() / vertex() / endShape() for custom shapes
  * - map() for scaling data to screen coordinates
  * - sin() for smooth wave visualization
