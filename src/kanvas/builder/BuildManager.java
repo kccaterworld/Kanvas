@@ -18,13 +18,6 @@ public class BuildManager {
         this.project = project;
     }
 
-    private void compileFile(Path file, Path outputDir, List<Path> classpath) throws KanvasException {
-        try { CompileTool.compile(file, outputDir, classpath, project.compilerSettings());
-        } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency for " + file + ": " + e.getMessage(), e);
-        } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + file + ": " + e.getMessage(), e);
-        } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error in " + file, e); }
-    }
-
     public void build() throws KanvasException {
         if (!CompileTool.checkCanRun()) throw new MissingDependencyException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         ProjectLoader.validateProject(project);
@@ -40,22 +33,21 @@ public class BuildManager {
         if (!generatedFiles.isEmpty() && target < RUNTIME_RELEASE)
             throw new KanvasException("compiler.target = " + target + " is too old for Kanvas sketches. The Kanvas runtime needs Java " + RUNTIME_RELEASE + " or newer.");
         Path outputDir = layout.classes();
-        List<File> javaFiles = new ArrayList<>();
 
-        try { CompileTool.compileAll(generatedFiles, outputDir, classpath, project.compilerSettings());
-        } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency for generated files: " + e.getMessage(), e);
-        } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + e.getMessage(), e);
-        } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error in generated files", e); }
-
+        List<Path> sources = new ArrayList<>(generatedFiles);
         for (Path srcDir : project.sourceRoots()) {
             try (Stream<Path> paths = Files.walk(srcDir)) {
-                javaFiles.addAll(paths.filter(Files::isRegularFile)
-                    .map(Path::toFile)
-                    .filter(file -> file.getName().endsWith(".java"))
-                    .collect(Collectors.toList()));
-            } catch (Exception e) { throw new KanvasException("Error occurred while walking directory: " + srcDir, e); }
+                sources.addAll(paths.filter(Files::isRegularFile)
+                    .filter(file -> file.getFileName().toString().endsWith(".java"))
+                    .sorted()
+                    .toList());
+            } catch (IOException | UncheckedIOException e) { throw new KanvasException("Error occurred while walking directory: " + srcDir, e); }
         }
-        for (File javaFile : javaFiles) compileFile(javaFile.toPath(), outputDir, classpath);
+
+        try { CompileTool.compileAll(sources, outputDir, classpath, project.compilerSettings());
+        } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency: " + e.getMessage(), e);
+        } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + e.getMessage(), e);
+        } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error while compiling", e); }
     }
 
     public List<Path> compileClasspath() {
