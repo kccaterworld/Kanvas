@@ -133,6 +133,16 @@ class BuildManagerTest {
     }
 
     @Test
+    void sketchesAndJavaReferenceEachOtherAcrossPackages() throws Exception {
+        writeFile(tmp.resolve("src/game/main.kvs"), "import util.Helper;\nvoid setup() { Helper.twice(1); }");
+        writeFile(tmp.resolve("src/util/Helper.java"), "package util; public class Helper { public static int twice(int x) { return 2 * x; } }");
+        writeFile(tmp.resolve("src/util/Launcher.java"), "package util; public class Launcher { Class<?> sketch = game.Main.class; }");
+        Path classes = build(sketchProject(tmp)).buildLayout().classes();
+        for (String name : List.of("game/Main", "util/Helper", "util/Launcher"))
+            assertTrue(Files.isRegularFile(classes.resolve(name + ".class")), name);
+    }
+
+    @Test
     void sameFileNameInDifferentFoldersCoexists() throws Exception {
         writeFile(tmp.resolve("src/a/player.kvs"), "int a = 1;");
         writeFile(tmp.resolve("src/b/player.kvs"), "int b = 2;");
