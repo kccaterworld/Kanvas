@@ -1,5 +1,6 @@
 package kanvas.project;
 
+import kanvas.preprocess.KanvasPreprocessor;
 import kanvas.preprocess.Preprocessor;
 import kanvas.project.Project.*;
 
@@ -84,7 +85,7 @@ public class ProjectLoader {
         if (!errors.isEmpty()) throw problems(configPath.toString(), errors);
 
         return new Project(name, version, author, description, configVersion, scriptDir,
-            entryPoints(mainClass, sourceRoots),
+            entryPoints(mainClass, sourceRoots, encoding == null || !isSupportedCharset(encoding) ? StandardCharsets.UTF_8 : Charset.forName(encoding)),
             sourceRoots, resourceRoots, List.of(scriptDir.resolve("lib")),
             BuildLayout.under(buildDir),
             dependencies,
@@ -107,24 +108,24 @@ public class ProjectLoader {
         if (!errors.isEmpty()) throw problems("Project '" + project.name() + "'", errors);
     }
 
-    // A Java class lives at <srcDir>/com/example/App.java; a sketch class comes from the .kvs file whose name maps to it
-    // (main.kvs -> kanvas.generated.Main). A mainClass from a dependency JAR has no entry point here.
-    private static List<Path> entryPoints(String mainClass, List<Path> sourceRoots) {
+    // A Java class lives at <srcDir>/com/example/App.java. A sketch class comes from the .kvs file that compiles to it:
+    // src/main.kvs -> kanvas.generated.Main, src/game/level.kvs -> game.Level. mainClass from dependency JARs have no entry point here.
+    private static List<Path> entryPoints(String mainClass, List<Path> sourceRoots, Charset encoding) {
         if (mainClass == null) return List.of();
         for (Path root : sourceRoots) {
             Path javaFile = root.resolve(mainClass.replace('.', '/') + ".java");
             if (Files.isRegularFile(javaFile)) return List.of(javaFile);
         }
-        String generatedPrefix = Preprocessor.DEFAULT_PACKAGE + ".";
-        String sketchClass = mainClass.startsWith(generatedPrefix) ? mainClass.substring(generatedPrefix.length()) : mainClass;
-        if (sketchClass.contains(".")) return List.of();
+        String sketchClass = mainClass.contains(".") ? mainClass : Preprocessor.DEFAULT_PACKAGE + "." + mainClass;
+        String simpleName = sketchClass.substring(sketchClass.lastIndexOf('.') + 1);
         for (Path root : sourceRoots) {
             if (!Files.isDirectory(root)) continue;
             try (Stream<Path> files = Files.walk(root)) {
                 Optional<Path> sketch = files
                     .filter(file -> file.getFileName().toString().endsWith(".kvs") && Files.isRegularFile(file))
-                    .filter(file -> Preprocessor.classNameFor(file.getFileName().toString().replaceFirst("[.][^.]+$", "")).equals(sketchClass))
+                    .filter(file -> KanvasPreprocessor.classNameFor(file).equals(simpleName))
                     .sorted()
+                    .filter(file -> sketchClass.equals(KanvasPreprocessor.qualifiedNameFor(root, file, encoding)))
                     .findFirst();
                 if (sketch.isPresent()) return List.of(sketch.get());
             } catch (IOException | UncheckedIOException e) { /* unreadable source root: the build reports it */ }
