@@ -1,91 +1,80 @@
 /**
- * Particle System - Phase 1 Feature Showcase
- * 
- * Demonstrates:
+ * Particle System
  * - random() and randomSeed() for reproducible randomness
  * - dist() for distance calculations between particles
  * - lerpColor() for color transitions
- * - ArrayList and particle data management
- *
- * Note: Uses arrays instead of classes due to preprocessor limitations
+ * - Classes defined within the sketch
  */
 
 import java.util.ArrayList;
 
-ArrayList<float[]> particles;
-double gravity = 0.1;
+ArrayList<Particle> particles;
+float gravity = 0.1f;
 
 void setup() {
     size(800, 600);
     smooth();
-    particles = new ArrayList<float[]>();
+    particles = new ArrayList<>();
     randomSeed(42); // For reproducibility
 }
 
 void draw() {
     background(30);
-    
-    // Update and display particles
+
+    // Update and display particles, removing dead ones
     for (int i = particles.size() - 1; i >= 0; i--) {
-        float[] p = particles.get(i);
-        // Update particle: x, y, vx, vy, life
-        p[0] += p[2]; // x += vx
-        p[1] += p[3]; // y += vy
-        p[3] += gravity; // vy += gravity
-        p[4] -= 1; // life -= 5
-        
-        // Display particle
-        displayParticle(p);
-        
-        // Remove dead particles
-        if (p[4] <= 0) {
-            particles.remove(i);
-        }
+        Particle p = particles.get(i);
+        p.update();
+        p.display();
+        if (p.isDead()) particles.remove(i);
     }
-    
+
     // Emit new particles from mouse
     for (int i = 0; i < 3; i++) {
-        particles.add(createParticle(mouseX, mouseY));
+        particles.add(new Particle(mouseX, mouseY));
     }
-    
-    // Check inter-particle distances for interesting effects
+
+    // Draw connections between nearby particles
+    stroke(255, 100, 100);
+    strokeWeight(1);
     for (int i = 0; i < particles.size(); i++) {
         for (int j = i + 1; j < particles.size(); j++) {
-            float[] p1 = particles.get(i);
-            float[] p2 = particles.get(j);
-            double d = dist(p1[0], p1[1], p2[0], p2[1]);
-            
-            // Draw connections between nearby particles
-            if (d < 50) {
-                stroke(255, 100, 100);
-                strokeWeight(1);
-                line(p1[0], p1[1], p2[0], p2[1]);
-            }
+            Particle a = particles.get(i);
+            Particle b = particles.get(j);
+            if (dist(a.x, a.y, b.x, b.y) < 50) line(a.x, a.y, b.x, b.y);
         }
     }
-    
-    // Display count
-    fill(255);
-    noStroke();
-    println("Particles: " + particles.size() + " | FPS: " + (int)frameRate);
+
+    println("Particles: " + particles.size() + " | FPS: " + (int) frameRate);
 }
 
-float[] createParticle(double x, double y) {
-    // Store as: x, y, vx, vy, life
-    float[] p = new float[5];
-    p[0] = (float) x;
-    p[1] = (float) y;
-    p[2] = (float) random(-2, 2); // vx
-    p[3] = (float) random(-5, -2); // vy
-    p[4] = 255; // life
-    return p;
-}
+class Particle {
+    float x, y, vx, vy;
+    float life = 255;
 
-void displayParticle(float[] p) {
-    double lifePercent = p[4] / 255.0;
-    // Lerp between colors based on life
-    int col = lerpColor(color(100, 50, 50), color(255, 200, 100), (float) lifePercent);
-    fill(col);
-    noStroke();
-    circle(p[0], p[1], (float) (10 * lifePercent));
+    Particle(double x, double y) {
+        this.x = (float) x;
+        this.y = (float) y;
+        vx = (float) random(-2, 2);
+        vy = (float) random(-5, -2);
+    }
+
+    void update() {
+        x += vx;
+        y += vy;
+        vy += gravity;
+        life -= 1;
+    }
+
+    void display() {
+        float lifePercent = life / 255;
+        // Lerp between colors based on life
+        fill(lerpColor(color(100, 50, 50), color(255, 200, 100), lifePercent));
+        noStroke();
+        circle(x, y, 10 * lifePercent);
+    }
+
+    boolean isDead() {
+        return life <= 0;
+    }
 }

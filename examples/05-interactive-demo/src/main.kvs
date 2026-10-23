@@ -1,40 +1,32 @@
 /**
- * Interactive Demo - Combined Phase 1 & 2 Features
- * 
+ * Interactive Demo
  * Click and drag to create interactive noise-based shapes with transforms.
- * 
- * Demonstrates:
  * - All math functions: sin, cos, sqrt, dist, map, lerp, noise
  * - Matrix transforms: pushMatrix, popMatrix, translate, rotate, scale
  * - Shape building: beginShape, vertex, endShape
  * - Random with seed
  * - Trig and angle functions
- *
- * Note: Uses arrays instead of classes due to preprocessor limitations
+ * - Classes defined within the sketch
  */
 
 import java.util.ArrayList;
 
-ArrayList<float[]> shapes;
+ArrayList<Blob> shapes;
 double globalRotation = 0;
 
 void setup() {
     size(1000, 700);
     smooth();
-    shapes = new ArrayList<float[]>();
+    shapes = new ArrayList<>();
 }
 
 void draw() {
     background(20);
-    
+
     globalRotation = frameCount * 0.005;
-    
-    // Display all shapes
-    for (int i = 0; i < shapes.size(); i++) {
-        float[] shape = shapes.get(i);
-        displayShape(shape);
-    }
-    
+
+    for (Blob shape : shapes) shape.display();
+
     // Draw interactive circle at mouse
     double mouseDistance = dist(mouseX, mouseY, pmouseX, pmouseY);
     if (mouseDistance > 0) {
@@ -42,66 +34,59 @@ void draw() {
         stroke(255, 100, 100);
         strokeWeight(2);
         circle(mouseX, mouseY, 40);
-        
+
         // Add trailing shapes
         if (random(1) < 0.3) {
-            float[] newShape = new float[3];
-            newShape[0] = (float)(mouseX + random(-10, 10)); // x
-            newShape[1] = (float)(mouseY + random(-10, 10)); // y
-            newShape[2] = (float) random(1000); // baseNoiseSeed
-            shapes.add(newShape);
+            shapes.add(new Blob(mouseX + random(-10, 10), mouseY + random(-10, 10)));
         }
     }
-    
+
     // Limit shape count
     if (shapes.size() > 15) {
         shapes.remove(0);
     }
-    
-    // Draw info
-    fill(200);
-    noStroke();
-    println("FPS: " + (int)frameRate + " | Shapes: " + shapes.size());
-}
 
-void displayShape(float[] shape) {
-    double x = shape[0];
-    double y = shape[1];
-    double baseNoiseSeed = shape[2];
-    double size = 50;
-    
-    pushMatrix();
-    translate((float)x, (float)y);
-    rotate((float)globalRotation);
-    
-    // Scale based on distance from center
-    double distFromCenter = dist(x, y, width/2, height/2);
-    double scaleVal = map(sin(distFromCenter * 0.01), -1, 1, 0.8, 1.2);
-    scale((float)scaleVal);
-    
-    // Draw shape with noise-based vertices
-    stroke(100, 150, 255);
-    strokeWeight(2);
-    fill(100, 150, 255);
-    
-    beginShape();
-    for (int a = 0; a < 360; a += 20) {
-        double angle = radians(a);
-        double noiseFactor = noise(baseNoiseSeed + a * 0.01, frameCount * 0.01);
-        double r = size * 0.5 * (0.5 + noiseFactor * 0.8);
-        double vx = cos(angle) * r;
-        double vy = sin(angle) * r;
-        vertex((float)vx, (float)vy);
-    }
-    endShape(CLOSE);
-    
-    popMatrix();
+    println("FPS: " + (int) frameRate + " | Shapes: " + shapes.size());
 }
 
 void mousePressed() {
-    float[] newShape = new float[3];
-    newShape[0] = mouseX;
-    newShape[1] = mouseY;
-    newShape[2] = (float) random(1000);
-    shapes.add(newShape);
+    shapes.add(new Blob(mouseX, mouseY));
+}
+
+class Blob {
+    double x, y;
+    double noiseSeed = random(1000);
+    double size = 50;
+
+    Blob(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    void display() {
+        pushMatrix();
+        translate((float) x, (float) y);
+        rotate((float) globalRotation);
+
+        // Scale based on distance from center
+        double distFromCenter = dist(x, y, width / 2, height / 2);
+        double scaleVal = map(sin(distFromCenter * 0.01), -1, 1, 0.8, 1.2);
+        scale((float) scaleVal);
+
+        // Draw shape with noise-based vertices
+        stroke(100, 150, 255);
+        strokeWeight(2);
+        fill(100, 150, 255);
+
+        beginShape();
+        for (int a = 0; a < 360; a += 20) {
+            double angle = radians(a);
+            double noiseFactor = noise(noiseSeed + a * 0.01, frameCount * 0.01);
+            double r = size * 0.5 * (0.5 + noiseFactor * 0.8);
+            vertex((float) (cos(angle) * r), (float) (sin(angle) * r));
+        }
+        endShape(CLOSE);
+
+        popMatrix();
+    }
 }
