@@ -177,11 +177,112 @@ class BuildManagerTest {
         }
     }
 
+    // A library JAR with greet.Greeter, plus any extra entries.
+    private Path greeterJar(Path jar, Map<String, String> extra) throws Exception {
+        Path source = writeFile(tmp.resolve("greeter-src/greet/Greeter.java"), "package greet; public class Greeter { public static String greet() { return \"hi\"; } }");
+        Path classes = Files.createDirectories(tmp.resolve("greeter-classes"));
+        assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, "--release", "21", "-d", classes.toString(), source.toString()));
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("greet/Greeter.class", Files.readAllBytes(classes.resolve("greet/Greeter.class")));
+        extra.forEach((name, content) -> entries.put(name, content.getBytes(StandardCharsets.UTF_8)));
+        return writeJar(jar, entries);
+    }
+
+    private static Path writeJar(Path jar, Map<String, byte[]> entries) throws Exception {
+        Files.createDirectories(jar.getParent());
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                out.putNextEntry(new JarEntry(entry.getKey()));
+                out.write(entry.getValue());
+                out.closeEntry();
+            }
+        }
+        return jar;
+    }
+
+    private static final String GREETING_APP = "public class App { public static void main(String[] args) { System.out.print(greet.Greeter.greet() + \" \" + kanvas.libs.math.KMath.class.getSimpleName()); } }";
+
+    private static String runJar(Path jar) throws Exception {
+        Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar", jar.toString())
+            .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(0, process.waitFor(), output);
+        return output;
+    }
+
     @Test
-    void onlyThinJarsCanBePackagedSoFar() throws Exception {
-        Path config = javaApp(tmp, 21, "[packaging]\nformat = \"fat\"\n", "public class App {}");
+    void jarAndDepsPutsTheRuntimeAndDependenciesInLib() throws Exception {
+        Path app = tmp.resolve("app");
+        greeterJar(app.resolve("lib/greeter.jar"), Map.of());
+        Path config = javaApp(app, 21, "dependencies = [\"greeter.jar\"]\n[packaging]\nformat = \"jar-and-deps\"\n", GREETING_APP);
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+
+        Path lib = jar.resolveSibling("lib");
+        assertTrue(Files.isRegularFile(lib.resolve("kanvas.jar")));
+        assertTrue(Files.isRegularFile(lib.resolve("greeter.jar")));
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertEquals("lib/kanvas.jar lib/greeter.jar", file.getManifest().getMainAttributes().getValue("Class-Path"));
+            assertNull(file.getEntry("greet/Greeter.class"), "dependencies stay in lib/");
+        }
+        assertEquals("hi KMath", runJar(jar));
+    }
+
+    @Test
+    void fatMergesTheRuntimeAndDependencies() throws Exception {
+        Path app = tmp.resolve("app");
+        greeterJar(app.resolve("lib/greeter.jar"), Map.of("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nMain-Class: greet.Wrong\n",
+            "META-INF/GREETER.SF", "signature", "META-INF/GREETER.RSA", "signature", "module-info.class", "module"));
+        Path config = javaApp(app, 21, "dependencies = [\"greeter.jar\"]\n", GREETING_APP);
+        Project jarAndDeps = ProjectLoader.loadProject(config, Map.of("packaging.format", "jar-and-deps"));
+        new BuildManager(jarAndDeps).packageProject();
+
+        Path jar = new BuildManager(ProjectLoader.loadProject(config, Map.of("packaging.format", "fat"))).packageProject();
+        assertFalse(Files.exists(jar.resolveSibling("lib")), "lib/ from the earlier package is removed");
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertEquals("App", file.getManifest().getMainAttributes().getValue("Main-Class"));
+            assertNull(file.getManifest().getMainAttributes().getValue("Class-Path"));
+            assertNotNull(file.getEntry("greet/Greeter.class"));
+            assertNotNull(file.getEntry("kanvas/gui/KanvasScript.class"));
+            for (String dropped : List.of("META-INF/GREETER.SF", "META-INF/GREETER.RSA", "module-info.class")) assertNull(file.getEntry(dropped), dropped);
+        }
+        assertEquals("hi KMath", runJar(jar));
+    }
+
+    @Test
+    void fatMergesServiceFilesAndRejectsOtherDuplicates() throws Exception {
+        Path app = tmp.resolve("app");
+        writeJar(app.resolve("lib/a.jar"), Map.of("META-INF/services/demo.Plugin", "a.Plugin\n".getBytes(StandardCharsets.UTF_8)));
+        writeJar(app.resolve("lib/b.jar"), Map.of("META-INF/services/demo.Plugin", "b.Plugin".getBytes(StandardCharsets.UTF_8)));
+        Path config = javaApp(app, 21, "dependencies = [\"a.jar\", \"b.jar\"]\n[packaging]\nformat = \"fat\"\n", "public class App {}");
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        try (JarFile file = new JarFile(jar.toFile())) {
+            String services = new String(file.getInputStream(file.getEntry("META-INF/services/demo.Plugin")).readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals("a.Plugin\nb.Plugin\n", services);
+        }
+
+        writeJar(app.resolve("lib/b.jar"), Map.of("config.properties", "b".getBytes(StandardCharsets.UTF_8)));
+        writeJar(app.resolve("lib/a.jar"), Map.of("config.properties", "a".getBytes(StandardCharsets.UTF_8)));
         String message = assertThrows(KanvasException.class, () -> new BuildManager(ProjectLoader.loadProject(config)).packageProject()).getMessage();
-        assertTrue(message.contains("packaging.format = \"fat\" is not supported yet"), message);
+        assertTrue(message.contains("config.properties is in both") && message.contains("a.jar") && message.contains("b.jar"), message);
+    }
+
+    @Test
+    void fatSketchJarsContainTheRuntime() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Path config = writeProject(tmp, "name = \"s\"\nversion = \"1\"\nmainClass = \"Main\"\n[modules]\nsrcDirs = [\"src\"]\n[packaging]\nformat = \"fat\"\n");
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertEquals("kanvas.generated.Main", file.getManifest().getMainAttributes().getValue("Main-Class"));
+            assertNotNull(file.getEntry("kanvas/generated/Main.class"));
+            assertNotNull(file.getEntry("kanvas/gui/KanvasScript.class"));
+        }
+    }
+
+    @Test
+    void launcherJarsAreNotSupportedYet() throws Exception {
+        Path config = javaApp(tmp, 21, "[packaging]\nformat = \"launcher\"\n", "public class App {}");
+        String message = assertThrows(KanvasException.class, () -> new BuildManager(ProjectLoader.loadProject(config)).packageProject()).getMessage();
+        assertTrue(message.contains("packaging.format = \"launcher\" is not supported yet"), message);
     }
 
     @Test
