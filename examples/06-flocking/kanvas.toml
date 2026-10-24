@@ -6,7 +6,6 @@ description = "A Java flocking simulation drawn by Kanvas sketches in nested pac
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

@@ -5,7 +5,6 @@ author = "Kemal"
 description = "Tests loadImage, image(), imageMode, sketchPath"
 mainClass = "kanvas.generated.Main"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

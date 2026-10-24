@@ -5,7 +5,6 @@ author = "Kemal"
 description = "Tests mouse and keyboard callbacks"
 mainClass = "kanvas.generated.Main"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

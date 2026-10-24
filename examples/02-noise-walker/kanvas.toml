@@ -6,7 +6,6 @@ description = "Organic motion using Perlin noise for smooth, natural-looking mov
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

@@ -5,7 +5,6 @@ author = "Kemal"
 description = "Tests rectMode and ellipseMode"
 mainClass = "kanvas.generated.Main"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

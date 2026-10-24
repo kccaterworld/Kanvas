@@ -4,7 +4,6 @@ version = "0.1.0"
 author = "{{AUTHOR}}"
 description = "A Java library managed by Kanvas"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]
@@ -13,3 +12,7 @@ buildDir = "build"
 [compiler]
 target = 21
 encoding = "UTF-8"
+
+[dependencies]
+# "com.google.code.gson:gson" = "2.10.1"   # Maven: "group:artifact" = "version"
+# utils = { path = "lib/utils.jar" }         # a local JAR or class directory

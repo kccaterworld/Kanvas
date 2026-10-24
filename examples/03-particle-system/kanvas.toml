@@ -6,7 +6,6 @@ description = "Simple particle system with physics simulation using vectors and 
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

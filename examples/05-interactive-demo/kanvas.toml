@@ -6,7 +6,6 @@ description = "Interactive demo combining multiple Phase 1 & 2 features"
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

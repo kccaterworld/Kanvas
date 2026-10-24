@@ -6,7 +6,6 @@ description = "Data visualization using custom shapes and mathematical transform
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

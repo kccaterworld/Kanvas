@@ -5,7 +5,6 @@ author = "Kemal"
 description = "Tests multi-window support (Debug.kvs launched from Main.kvs)"
 mainClass = "kanvas.generated.Main"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

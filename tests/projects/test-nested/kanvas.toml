@@ -5,7 +5,6 @@ author = "Kemal"
 description = "Nested packages with .kvs and .java referencing each other, started from a Java main class"
 mainClass = "app.Launcher"
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]

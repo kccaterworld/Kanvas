@@ -6,7 +6,6 @@ description = "Recursive tree generation using noise and matrix transforms"
 mainClass = "Main"
 
 classpath = []
-dependencies = []
 
 [modules]
 srcDirs = ["src"]
