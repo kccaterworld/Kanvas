@@ -1,0 +1,2 @@
+// game/entities/enemy.kvs -> game.entities.Enemy.
+public int hp = 3;

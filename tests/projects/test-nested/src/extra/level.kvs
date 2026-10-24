@@ -1,0 +1,6 @@
+// The package line wins over the folder: custom.levels.Level, not extra.Level.
+package custom.levels;
+
+void setup() {
+    size(200, 200);
+}

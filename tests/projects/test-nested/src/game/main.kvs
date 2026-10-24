@@ -1,0 +1,16 @@
+// game/main.kvs -> game.Main. Uses a .kvs class from a subfolder and Java from util/.
+import game.entities.Enemy;
+import util.Scores;
+import java.util.List;
+
+List<Enemy> enemies = List.of(new Enemy(), new Enemy());
+
+void setup() {
+    size(400, 300);
+    println("Total hp: " + Scores.totalHp(enemies));
+}
+
+void draw() {
+    background(30);
+    for (int i = 0; i < enemies.size(); i++) ellipse(50 + i * 60, 150, enemies.get(i).hp * 10, 20);
+}

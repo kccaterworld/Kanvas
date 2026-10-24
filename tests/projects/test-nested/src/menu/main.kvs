@@ -1,0 +1,4 @@
+// Same file name as game/main.kvs; the folder keeps them apart (menu.Main).
+void draw() {
+    background(200);
+}
