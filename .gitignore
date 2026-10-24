@@ -3,6 +3,7 @@
 .mtj.tmp/
 out/
 build/
+.kanvas/
 
 *.class
 *.log
