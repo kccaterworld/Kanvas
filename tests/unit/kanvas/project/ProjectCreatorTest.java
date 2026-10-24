@@ -23,6 +23,7 @@ class ProjectCreatorTest {
         assertEquals("demo-" + template, project.name());
         assertEquals(System.getProperty("user.name", ""), project.author());
         assertDoesNotThrow(() -> ProjectLoader.validateProject(project));
+        assertEquals(List.of("build/", ".kanvas/"), Files.readAllLines(tmp.resolve("demo-" + template + "/.gitignore")));
     }
 
     @Test
@@ -32,7 +33,7 @@ class ProjectCreatorTest {
         Files.writeString(app, "// my edits");
         Files.writeString(tmp.resolve("demo/notes.txt"), "keep me");
 
-        assertEquals(List.of(tmp.resolve("demo/kanvas.toml").normalize(), app.normalize()), ProjectCreator.existingFiles("demo", "java-app", tmp.toString()));
+        assertEquals(List.of(tmp.resolve("demo/kanvas.toml").normalize(), app.normalize(), tmp.resolve("demo/.gitignore").normalize()), ProjectCreator.existingFiles("demo", "java-app", tmp.toString()));
         String message = assertThrows(KanvasProjectException.class, () -> ProjectCreator.createProject("demo", "java-app", tmp.toString())).getMessage();
         assertTrue(message.contains("already exists"), message);
         assertEquals("// my edits", Files.readString(app));
