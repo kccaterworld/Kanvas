@@ -8,6 +8,7 @@ import java.util.*;
 import java.util.stream.*;
 import java.io.*;
 import java.nio.file.*;
+import java.util.jar.*;
 
 public class BuildManager {
     private static final int RUNTIME_RELEASE = 21;
@@ -48,6 +49,26 @@ public class BuildManager {
         } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency: " + e.getMessage(), e);
         } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + e.getMessage(), e);
         } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error while compiling", e); }
+    }
+
+    public Path packageProject() throws KanvasException {
+        Project.PACKAGE_FORMAT format = project.packagingSettings().format();
+        if (format != Project.PACKAGE_FORMAT.THIN)
+            throw new KanvasException("packaging.format = \"" + format.name().toLowerCase(Locale.ROOT).replace('_', '-') + "\" is not supported yet. Only \"thin\" JARs can be packaged for now.");
+        build();
+
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        attributes.put(new Attributes.Name("Created-By"), "Kanvas");
+        String mainClass = project.launchClass();
+        if (mainClass != null) attributes.put(Attributes.Name.MAIN_CLASS, mainClass);
+
+        Project.BuildLayout layout = project.buildLayout();
+        Path jar = layout.output().resolve(project.packagingSettings().jarName());
+        try { KanvasJarTool.createJar(jar, manifest, List.of(layout.classes(), layout.resources()));
+        } catch (IOException e) { throw new KanvasException("Failed to create " + jar + ": " + e.getMessage(), e); }
+        return jar;
     }
 
     public List<Path> compileClasspath() {
