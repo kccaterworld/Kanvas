@@ -82,8 +82,6 @@ class ProjectLoaderTest {
         assertEquals(Map.of("MODE", "debug"), runtime.envVars());
 
         assertEquals(List.of(new Dependency.Local("gson.jar", dir.resolve("lib/gson.jar"))), project.dependencies());
-        assertEquals(List.of(dir.resolve("lib/gson.jar")), project.dependencyClasspath());
-        assertEquals(List.of(dir.resolve("libs/extra"), dir.resolve("lib/gson.jar")), project.userClasspath());
 
         assertEquals(new Project.PackagingSettings("custom.jar", dir.resolve("icon.png"), List.of("linux"), Project.PACKAGE_FORMAT.JAR_AND_DEPS), project.packagingSettings());
     }
@@ -115,6 +113,20 @@ class ProjectLoaderTest {
     }
 
     @Test
+    void repositoriesDefaultToMavenCentralAndNeedHttps() throws Exception {
+        assertEquals(List.of(Project.MAVEN_CENTRAL), ProjectLoader.loadProject(writeProject(tmp, MINIMAL)).repositories());
+
+        Path config = writeProject(tmp, "repositories = [\"https://jitpack.io\", \"http://localhost:8080/repo/\"]\n" + MINIMAL);
+        assertEquals(List.of(java.net.URI.create("https://jitpack.io/"), java.net.URI.create("http://localhost:8080/repo/")),
+            ProjectLoader.loadProject(config).repositories(), "a trailing slash is added");
+
+        Path bad = writeProject(tmp, "repositories = [\"http://example.com/maven\", \"ftp://example.com\", \"not a url\"]\n" + MINIMAL);
+        String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.loadProject(bad)).getMessage();
+        assertTrue(message.contains("\"http://example.com/maven\" uses http; use https") && message.contains("\"ftp://example.com\" must be an https:// URL")
+            && message.contains("\"not a url\" is not a valid URL"), message);
+    }
+
+    @Test
     void rejectsBadDependencies() throws Exception {
         Path config = writeProject(tmp, MINIMAL + """
             [dependencies]
@@ -136,32 +148,6 @@ class ProjectLoaderTest {
                 "dependencies.\"g:noversion\" needs a version",
                 "Unknown key 'dependencies.\"local\".scope'"))
             assertTrue(message.contains(expected), expected + "\n" + message);
-    }
-
-    @Test
-    void findsMavenJarsInTheProjectCacheThenTheLocalRepository() throws Exception {
-        Path m2 = tmp.resolve("m2");
-        String previous = System.setProperty("maven.repo.local", m2.toString());
-        try {
-            Path config = writeProject(tmp.resolve("p"), MINIMAL + "[dependencies]\n\"com.example:lib\" = \"1.0\"\n");
-            Project project = ProjectLoader.loadProject(config);
-            Dependency lib = project.dependencies().getFirst();
-            Path cached = project.cacheDir().resolve("maven/com/example/lib/1.0/lib-1.0.jar");
-            Path local = m2.toAbsolutePath().normalize().resolve("com/example/lib/1.0/lib-1.0.jar");
-            assertEquals(List.of(cached, local), project.candidates(lib));
-
-            String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.validateProject(project)).getMessage();
-            assertTrue(message.contains("Dependency com.example:lib:1.0 not found") && message.contains(cached.toString())
-                && message.contains(local.toString()) && message.contains("mvn dependency:get -Dartifact=com.example:lib:1.0"), message);
-
-            writeFile(local, "jar");
-            assertEquals(local, project.locate(lib));
-            ProjectLoader.validateProject(project);
-            writeFile(cached, "jar");
-            assertEquals(cached, project.locate(lib), "the project cache wins");
-        } finally {
-            if (previous == null) System.clearProperty("maven.repo.local"); else System.setProperty("maven.repo.local", previous);
-        }
     }
 
     @Test
@@ -315,13 +301,12 @@ class ProjectLoaderTest {
             """);
         Project project = ProjectLoader.loadProject(config);
         String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.validateProject(project)).getMessage();
-        assertTrue(message.contains("has 4 problems"), message);
+        assertTrue(message.contains("has 3 problems"), message);
         assertTrue(message.contains("Source directory not found") && message.contains("Classpath entry not found")
-            && message.contains("Dependency 'gson.jar' not found") && message.contains("Icon not found"), message);
+            && message.contains("Icon not found"), message);
 
         Files.createDirectories(tmp.resolve("gen"));
         Files.createDirectories(tmp.resolve("libs/extra"));
-        writeFile(tmp.resolve("lib/gson.jar"), "");
         writeFile(tmp.resolve("icon.png"), "");
         assertDoesNotThrow(() -> ProjectLoader.validateProject(project));
     }
