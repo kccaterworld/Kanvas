@@ -57,11 +57,16 @@ public final class StartupScreen {
         for (String line : logoLines) screen.append(Text.style(line, theme.borderColor, theme.accentColor)).append("\n");
         screen.append(Text.style("Welcome to Kanvas CLI", theme.titleColor, "bold")).append("\n");
         screen.append("\n");
-        screen.append(Text.style("1) create\tCreate a new Kanvas project", theme.primaryColor)).append("\n");
-        screen.append(Text.style("2) run\t\tRun an existing Kanvas project", theme.primaryColor)).append("\n");
-        screen.append(Text.style("3) \"filename\"\tRun or create a Kanvas project", theme.primaryColor)).append("\n");
-        screen.append(Text.style("4) help\t\tShow available commands", theme.primaryColor)).append("\n");
-        screen.append(Text.style("5) quit\t\tExit the application", theme.primaryColor)).append("\n");
+        screen.append(Text.style("1) create\t\tCreate a new project in the current directory", theme.primaryColor)).append("\n");
+        screen.append(Text.style("2) clean\t\tDelete the build directory and the Kanvas cache", theme.primaryColor)).append("\n");
+        screen.append(Text.style("3) dependencies\tShow the dependency tree and why each version was chosen", theme.primaryColor)).append("\n");
+        screen.append(Text.style("4) list-types\t\tShow available project templates", theme.primaryColor)).append("\n");
+        screen.append(Text.style("5) config\t\tPrint the effective kanvas.toml after CLI overrides", theme.primaryColor)).append("\n");
+        screen.append(Text.style("6) build\t\tBuild the project containing the current directory", theme.primaryColor)).append("\n");
+        screen.append(Text.style("7) package\t\tBuild a distributable JAR for the project containing the current directory (builds first if anything changed)", theme.primaryColor)).append("\n");
+        screen.append(Text.style("8) run\t\t\tRun the project containing the current directory (builds first if anything changed)", theme.primaryColor)).append("\n");
+        screen.append(Text.style("9) install\t\tInstall the kanvas command so it can be run from any terminal", theme.primaryColor)).append("\n");
+        screen.append(Text.style("10) help\t\tShow this help message", theme.primaryColor)).append("\n");
         screen.append("\n");
         return screen.toString();
     }
