@@ -1,9 +1,11 @@
 Usage:
     kanvas
     kanvas create <name> [--type <template>] [--force]
+    kanvas clean
     kanvas list-types
     kanvas config [project] [overrides]
     kanvas build
+    kanvas package [--format <format>]
     kanvas run
     kanvas install [--dir <path>]
     kanvas help
@@ -11,9 +13,11 @@ Usage:
 
 Commands:
     create          Create a new project in the current directory
+    clean           Delete the build directory and the Kanvas cache
     list-types      Show available project templates
     config          Print the effective kanvas.toml after CLI overrides
     build           Build the project containing the current directory
+    package         Build a distributable JAR for the project containing the current directory
     run             Build and run the project containing the current directory
     install         Install the kanvas command so it can be run from any terminal
     help            Show this help message
@@ -21,6 +25,9 @@ Commands:
 Create options:
     --type          Project template: kanvas-sketch, java-app, java-lib, mixed-project, empty
     --force         Overwrite an existing project's template files without asking
+
+Package options:
+    --format        Package format: jar-and-deps, fat
 
 Install options:
     --dir           Directory to install the kanvas command into
