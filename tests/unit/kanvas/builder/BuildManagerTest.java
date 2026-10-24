@@ -302,7 +302,7 @@ class BuildManagerTest {
         Files.writeString(asset, "b");
         assertTrue(manager.buildIfNeeded(), "resource changed");
 
-        Files.writeString(config, Files.readString(config) + "[compiler]\ntarget = 22\n");
+        Files.writeString(config, Files.readString(config) + "[runtime]\njvmArgs = [\"-Xmx512m\"]\n");
         BuildManager reloaded = new BuildManager(ProjectLoader.loadProject(config));
         assertTrue(reloaded.buildIfNeeded(), "config changed");
         assertFalse(reloaded.buildIfNeeded());
