@@ -6,18 +6,17 @@ import java.util.*;
 import java.nio.file.Path;
 
 public record Project(String name, String version, String author, String description, int configVersion, Path scriptDir,
-
         List<Path> entryPoints,
         List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
         BuildLayout buildLayout,
         List<String> dependencyDeclarations,
         Map<String, Profile> profiles,
-
         CompilerSettings compilerSettings, RuntimeSettings runtimeSettings, PackagingSettings packagingSettings
 ) {
     public static final int DEFAULT_TARGET = 21;
     public static final String DEFAULT_ENCODING = "UTF-8";
     public static final String DEFAULT_ROOT = "build";
+    public static final String CACHE_DIR = ".kanvas/cache";
 
     public Project {
         Objects.requireNonNull(name, "name");
@@ -38,6 +37,8 @@ public record Project(String name, String version, String author, String descrip
         Objects.requireNonNull(runtimeSettings, "runtimeSettings");
         Objects.requireNonNull(packagingSettings, "packagingSettings");
     }
+
+    public Path cacheDir() { return scriptDir.resolve(CACHE_DIR).normalize(); }
 
     public List<Path> dependencyClasspath() {
         if (dependencyDeclarations.isEmpty()) return List.of();
