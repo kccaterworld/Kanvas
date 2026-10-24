@@ -27,7 +27,8 @@ Create options:
     --force         Overwrite an existing project's template files without asking
 
 Package options:
-    --format        Package format: jar-and-deps, fat
+    --format        thin (default; project only), jar-and-deps (adds lib/), fat (one runnable JAR)
+                    Overrides packaging.format for this run only
 
 Install options:
     --dir           Directory to install the kanvas command into
