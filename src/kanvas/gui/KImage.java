@@ -6,6 +6,8 @@ import kanvas.runtime.KanvasStdlib;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
@@ -51,6 +53,24 @@ public class KImage {
         } catch (Exception e) {
             throw new KanvasException("Failed to load image: " + e.getMessage(), e);
         }
+    }
+
+    /** Loads an image from a URL, such as a classpath resource inside a JAR. */
+    public KImage(URL url, KanvasWindow window) throws KanvasException {
+        this(decode(url), window);
+    }
+
+    private KImage(BufferedImage source, KanvasWindow window) {
+        this(source);
+        this.window = window;
+    }
+
+    private static BufferedImage decode(URL url) throws KanvasException {
+        try {
+            BufferedImage image = ImageIO.read(url);
+            if (image == null) throw new KanvasException("Unsupported image format: " + url);
+            return image;
+        } catch (IOException e) { throw new KanvasException("Failed to load image " + url + ": " + e.getMessage(), e); }
     }
 
     public KImage(int[] pixels, int width, int height) {

@@ -7,8 +7,8 @@ import kanvas.runtime.KanvasStdlib;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.net.URL;
+import java.nio.file.*;
 import java.util.Stack;
 import javax.swing.SwingUtilities;
 
@@ -20,12 +20,12 @@ public abstract class KanvasScript extends KanvasStdlib {
     public static final DrawMode RADIUS  = DrawMode.RADIUS;
 
     // Mouse button constants (Processing-compatible). Note: LEFT/RIGHT double
-    // as arrow-key codes (37/39), matching Processing's shared constant table.
+    // as arrow-key codes (37/39), because Processing's a bum (shared constant table or something)
     public static final int LEFT = 37;
     public static final int RIGHT = 39;
     public static final int CENTER_BUTTON = 3;
 
-    // Keyboard event constants (Processing-compatible keyCode values)
+    // Keyboard event constants (again copying processing)
     public static final int CODED = 0xFFFF;
     public static final int UP = 38;
     public static final int DOWN = 40;
@@ -108,19 +108,9 @@ public abstract class KanvasScript extends KanvasStdlib {
         } catch (InterruptedException e) { System.out.println("Main thread interrupted: " + e.getMessage()); }
     }
 
-    /**
-     * Opens this script's own window on a separate render loop and returns
-     * immediately. Used to create secondary (debug) windows from another
-     * {@code .kvs} file: {@code Debug debug = new Debug(); debug.launchWindow();}
-     *
-     * <p>Closing a secondary window stops only that script's render loop; it
-     * does not exit the whole program. Use {@link #start()} for the primary
-     * window, which exits on close.
-     */
-    public void launchWindow() {
-        launchWindow(false);
-    }
-
+    // Launches a window for this script, but doesn't block the thread
+    // mult window support and such
+    public void launchWindow() { launchWindow(false); }
     private void launchWindow(boolean exitOnClose) {
         setGlobal("script", this);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
@@ -287,20 +277,13 @@ public abstract class KanvasScript extends KanvasStdlib {
     protected void triangle(float x1, float y1, float x2, float y2, float x3, float y3) {
         if (graphics != null) graphics.triangle(x1, y1, x2, y2, x3, y3);
     }
-
-    // ============ Shape Building (beginShape/endShape/vertex) ============
     
-    /**
-     * Starts building a custom shape. Must be paired with {@link #endShape()}.
-     */
+    // starts a custom shape definition
     protected void beginShape() {
         if (graphics != null) graphics.beginShape();
     }
     
-    /**
-     * Starts building a custom shape with the specified mode.
-     * @param mode the shape mode (POINTS, LINES, TRIANGLES, POLYGON, OPEN, CLOSE)
-     */
+    // begin shape but with specific mode
     protected void beginShape(int mode) {
         if (graphics != null) graphics.beginShape(mode);
     }
@@ -347,17 +330,43 @@ public abstract class KanvasScript extends KanvasStdlib {
     // ============ Images & Asset Paths ============
 
     /**
-     * Loads an image from the sketch's asset root (or an absolute path).
-     * Relative paths are resolved the same way {@link #sketchPath(String)}
-     * resolves them, so {@code loadImage("head.png")} finds
-     * {@code <project>/head.png} and {@code loadImage("assets/head.png")}
-     * finds {@code <project>/assets/head.png}.
+     * Loads an image from the project's resources, or from an absolute path.
+     * Resource names are relative to the resource folder, so
+     * {@code loadImage("textures/head.png")} finds {@code assets/textures/head.png}.
+     * This works the same under {@code kanvas run} and inside a packaged JAR.
      *
      * @return the loaded image, or {@code null} (with an error printed) if the
-     *         file cannot be found or decoded
+     *         image cannot be found or decoded
      */
-    public KImage loadImage(String filename) {
-        return loadImage(new File(sketchPath(filename)));
+    public KImage loadImage(String name) {
+        if (isAbsolutePath(name)) return loadImage(new File(name));
+        URL url = resource(name);
+        if (url == null) {
+            System.err.println("loadImage failed: no resource named '" + name + "'. Put it in the project's assets folder.");
+            return null;
+        }
+        try {
+            return new KImage(url, window);
+        } catch (KanvasException e) {
+            System.err.println("loadImage failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** The URL of a project resource such as {@code "textures/head.png"}, or null if there is none. */
+    public URL resource(String name) {
+        if (name == null || name.isBlank()) return null;
+        String normalized = name.replace('\\', '/');
+        while (normalized.startsWith("./")) normalized = normalized.substring(2);
+        while (normalized.startsWith("/")) normalized = normalized.substring(1);
+        ClassLoader loader = getClass().getClassLoader();
+        return loader == null ? ClassLoader.getSystemResource(normalized) : loader.getResource(normalized);
+    }
+
+    private static boolean isAbsolutePath(String name) {
+        if (name == null) return false;
+        try { return Paths.get(name).isAbsolute();
+        } catch (InvalidPathException e) { return false; }
     }
 
     /**
