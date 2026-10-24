@@ -3,8 +3,7 @@ package kanvas.builder;
 import kanvas.KanvasException;
 import kanvas.TestSupport;
 import kanvas.preprocess.KanvasPreprocessor;
-import kanvas.project.Project;
-import kanvas.project.ProjectLoader;
+import kanvas.project.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
 
@@ -140,6 +140,48 @@ class BuildManagerTest {
         Path classes = build(sketchProject(tmp)).buildLayout().classes();
         for (String name : List.of("game/Main", "util/Helper", "util/Launcher"))
             assertTrue(Files.isRegularFile(classes.resolve(name + ".class")), name);
+    }
+
+    @Test
+    void packagesARunnableJar() throws Exception {
+        Path config = javaApp(tmp, 21, "", "public class App { public static void main(String[] args) { System.out.print(\"packaged\"); } }");
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        assertEquals(tmp.resolve("build/output/app.jar").toAbsolutePath().normalize(), jar.toAbsolutePath().normalize());
+
+        Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar", jar.toString())
+            .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(0, process.waitFor(), output);
+        assertEquals("packaged", output);
+    }
+
+    @Test
+    void packagedSketchesNameTheGeneratedMainClass() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Path config = writeProject(tmp, "name = \"s\"\nversion = \"1\"\nmainClass = \"Main\"\n[modules]\nsrcDirs = [\"src\"]\n[packaging]\njarName = \"sketch.jar\"\n");
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        assertEquals("sketch.jar", jar.getFileName().toString());
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertEquals("kanvas.generated.Main", file.getManifest().getMainAttributes().getValue("Main-Class"));
+            assertNotNull(file.getEntry("kanvas/generated/Main.class"));
+        }
+    }
+
+    @Test
+    void librariesPackageWithoutAMainClass() throws Exception {
+        writeFile(tmp.resolve("src/lib/Util.java"), "package lib; public class Util {}");
+        Path jar = new BuildManager(ProjectLoader.loadProject(sketchProject(tmp))).packageProject();
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertNull(file.getManifest().getMainAttributes().getValue("Main-Class"));
+            assertNotNull(file.getEntry("lib/Util.class"));
+        }
+    }
+
+    @Test
+    void onlyThinJarsCanBePackagedSoFar() throws Exception {
+        Path config = javaApp(tmp, 21, "[packaging]\nformat = \"fat\"\n", "public class App {}");
+        String message = assertThrows(KanvasException.class, () -> new BuildManager(ProjectLoader.loadProject(config)).packageProject()).getMessage();
+        assertTrue(message.contains("packaging.format = \"fat\" is not supported yet"), message);
     }
 
     @Test
