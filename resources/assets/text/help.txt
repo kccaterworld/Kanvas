@@ -17,8 +17,8 @@ Commands:
     list-types      Show available project templates
     config          Print the effective kanvas.toml after CLI overrides
     build           Build the project containing the current directory
-    package         Build a distributable JAR for the project containing the current directory
-    run             Build and run the project containing the current directory
+    package         Build a distributable JAR for the project containing the current directory (builds first if anything changed)
+    run             Run the project containing the current directory (builds first if anything changed)
     install         Install the kanvas command so it can be run from any terminal
     help            Show this help message
 
