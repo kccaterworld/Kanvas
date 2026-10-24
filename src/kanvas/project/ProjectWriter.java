@@ -28,8 +28,10 @@ public final class ProjectWriter {
         toml.append("\n[dependencies]\n");
         for (Dependency dependency : project.dependencies()) {
             switch (dependency) {
-                case Dependency.Maven maven -> line(toml, key(maven.key()), string(maven.version()));
-                case Dependency.Local local -> line(toml, key(local.name()), "{ path = " + string(relative(dir, local.path())) + " }");
+                case Dependency.Maven maven -> line(toml, key(maven.key()), maven.scope() == Dependency.Scope.COMPILE ? string(maven.version())
+                    : "{ version = " + string(maven.version()) + ", scope = " + string(maven.scope().label()) + " }");
+                case Dependency.Local local -> line(toml, key(local.name()), "{ path = " + string(relative(dir, local.path()))
+                    + (local.scope() == Dependency.Scope.COMPILE ? "" : ", scope = " + string(local.scope().label())) + " }");
             }
         }
 

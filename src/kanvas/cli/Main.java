@@ -3,6 +3,7 @@ package kanvas.cli;
 import kanvas.KanvasException;
 import kanvas.project.*;
 import kanvas.builder.BuildManager;
+import kanvas.dependency.DependencyResolver;
 import kanvas.runtime.KanvasRunner;
 
 import java.util.*;
@@ -31,7 +32,7 @@ public class Main {
         if (remaining.length > 0) runCommand(remaining);
     }
 
-    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "test", "help");
+    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "dependencies", "test", "help");
     private static final List<String> PACKAGE_FORMATS = List.of("thin", "jar-and-deps", "fat");
     private static final Map<String, String> FAILURE_PREFIXES = Map.of(
         "create", "Create failed: ",
@@ -41,6 +42,7 @@ public class Main {
         "install", "Install failed: ",
         "package", "Package failed: ",
         "clean", "Clean failed: ",
+        "dependencies", "Dependencies failed: ",
         "test", "Test failed: "
     );
 
@@ -96,6 +98,10 @@ public class Main {
                     throw new KanvasException("--format must be one of " + String.join(", ", PACKAGE_FORMATS) + ", found '" + format + "'" + closest(format, PACKAGE_FORMATS).map(f -> ". Did you mean '" + f + "'?").orElse(""));
                 Path jar = new BuildManager(loadProject(format == null ? Map.of() : Map.of("packaging.format", format))).packageProject();
                 System.out.println("Packaged " + Paths.get("").toAbsolutePath().relativize(jar.toAbsolutePath()));
+            } break;
+            case "dependencies": {
+                parseArguments(args, 0, Set.of(), Set.of());
+                System.out.print(new DependencyResolver(loadProject()).tree());
             } break;
             case "clean": {
                 parseArguments(args, 0, Set.of(), Set.of());

@@ -2,6 +2,7 @@ Usage:
     kanvas
     kanvas create <name> [--type <template>] [--force]
     kanvas clean
+    kanvas dependencies
     kanvas list-types
     kanvas config [project] [overrides]
     kanvas build
@@ -14,6 +15,7 @@ Usage:
 Commands:
     create          Create a new project in the current directory
     clean           Delete the build directory and the Kanvas cache
+    dependencies    Show the dependency tree and why each version was chosen
     list-types      Show available project templates
     config          Print the effective kanvas.toml after CLI overrides
     build           Build the project containing the current directory

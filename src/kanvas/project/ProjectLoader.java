@@ -127,7 +127,7 @@ public class ProjectLoader {
                     .filter(file -> sketchClass.equals(KanvasPreprocessor.qualifiedNameFor(root, file, encoding)))
                     .findFirst();
                 if (sketch.isPresent()) return List.of(sketch.get());
-            } catch (IOException | UncheckedIOException e) { /* unreadable source root: the build reports it */ }
+            } catch (IOException | UncheckedIOException e) { /* unreadable root, the build reports it */ }
         }
         return List.of();
     }
@@ -139,7 +139,7 @@ public class ProjectLoader {
         if (value instanceof String || value instanceof List<?>) {
             for (String entry : root.strings("dependencies")) {
                 String[] parts = entry.split(":", -1);
-                if (parts.length == 3) maven(parts[0], parts[1], parts[2], "dependencies entry \"" + entry + "\"", result, errors);
+                if (parts.length == 3) maven(parts[0], parts[1], parts[2], Dependency.Scope.COMPILE, "dependencies entry \"" + entry + "\"", result, errors);
                 else result.add(new Dependency.Local(entry, resolve(scriptDir.resolve("lib"), entry, "dependencies", errors)));
             }
             return result;
@@ -152,13 +152,21 @@ public class ProjectLoader {
             String key = entry.getKey().toString(), where = "dependencies.\"" + key + "\"";
             Object spec = entry.getValue();
             String version = spec instanceof String s ? s : null, path = null;
+            Dependency.Scope scope = Dependency.Scope.COMPILE;
             if (spec instanceof Map<?, ?> fields) {
                 for (Map.Entry<?, ?> field : fields.entrySet()) {
                     String name = field.getKey().toString();
                     if (!(field.getValue() instanceof String s)) errors.add(where + "." + name + " must be a string");
                     else if (name.equals("version")) version = s;
                     else if (name.equals("path")) path = s;
-                    else errors.add("Unknown key '" + where + "." + name + "'. Use version or path");
+                    else if (name.equals("scope")) {
+                        scope = Dependency.Scope.parse(s);
+                        if (scope == null) {
+                            errors.add(where + ".scope must be \"compile\", \"runtime\" or \"provided\", found \"" + s + "\"");
+                            scope = Dependency.Scope.COMPILE;
+                        }
+                    }
+                    else errors.add("Unknown key '" + where + "." + name + "'. Use version, path or scope");
                 }
             } else if (version == null) {
                 errors.add(where + " must be a version string or a table, found " + spec);
@@ -168,13 +176,13 @@ public class ProjectLoader {
             if (path != null && version != null) errors.add(where + " has both version and path; use one");
             else if (path != null) {
                 if (path.isBlank()) errors.add(where + ".path must not be empty");
-                else result.add(new Dependency.Local(key, resolve(scriptDir, path, where + ".path", errors)));
+                else result.add(new Dependency.Local(key, resolve(scriptDir, path, where + ".path", errors), scope));
             } else if (!coordinate) errors.add(where + " needs { path = \"...\" }, or a \"group:artifact\" key with a version");
             else if (version == null || version.isBlank()) errors.add(where + " needs a version");
             else {
                 String[] parts = key.split(":", -1);
                 if (parts.length != 2) errors.add(where + " must be written \"group:artifact\"");
-                else maven(parts[0], parts[1], version, where, result, errors);
+                else maven(parts[0], parts[1], version, scope, where, result, errors);
             }
         }
         return result;
@@ -191,19 +199,17 @@ public class ProjectLoader {
             }
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT), host = uri.getHost();
             boolean loopback = "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "[::1]".equals(host);
-            if (host == null || !(scheme.equals("https") || scheme.equals("http")))
-                errors.add("repositories entry \"" + url + "\" must be an https:// URL");
-            else if (scheme.equals("http") && !loopback)
-                errors.add("repositories entry \"" + url + "\" uses http; use https so downloads can't be tampered with");
+            if (host == null || !(scheme.equals("https") || scheme.equals("http"))) errors.add("repositories entry \"" + url + "\" must be an https:// URL");
+            else if (scheme.equals("http") && !loopback) errors.add("repositories entry \"" + url + "\" uses http; use https so downloads can't be tampered with");
             else result.add(uri);
         }
         return result;
     }
 
-    private static void maven(String group, String artifact, String version, String where, List<Dependency> result, List<String> errors) {
+    private static void maven(String group, String artifact, String version, Dependency.Scope scope, String where, List<Dependency> result, List<String> errors) {
         String problem = Dependency.Maven.problem(group, artifact, version);
         if (problem != null) errors.add(where + ": " + problem);
-        else result.add(new Dependency.Maven(group, artifact, version));
+        else result.add(new Dependency.Maven(group, artifact, version, scope));
     }
 
     private static PACKAGE_FORMAT packageFormat(String value, List<String> errors) {

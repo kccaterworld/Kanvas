@@ -1,6 +1,7 @@
 package kanvas.builder;
 
 import kanvas.dependency.DependencyResolver;
+import kanvas.dependency.ResolvedDependency;
 import kanvas.preprocess.KanvasPreprocessor;
 import kanvas.project.*;
 import kanvas.KanvasException;
@@ -18,7 +19,7 @@ public class BuildManager {
     private static final int RUNTIME_RELEASE = 21;
 
     private final Project project;
-    private List<Path> dependencyClasspath;
+    private List<ResolvedDependency> dependencies;
 
     public BuildManager(Project project) {
         this.project = project;
@@ -100,7 +101,9 @@ public class BuildManager {
         try {
             for (Path root : project.sourceRoots()) hashTree(digest, "source", root);
             for (Path root : project.resourceRoots()) hashTree(digest, "resource", root);
-            for (Path entry : compileClasspath()) hashTree(digest, "classpath", entry);
+            Set<Path> classpath = new LinkedHashSet<>(compileClasspath());
+            classpath.addAll(runtimeClasspath());
+            for (Path entry : classpath) hashTree(digest, "classpath", entry);
         } catch (IOException | UncheckedIOException e) { throw new KanvasException("Failed to read project files: " + e.getMessage(), e); }
         return HexFormat.of().formatHex(digest.digest());
     }
@@ -151,7 +154,7 @@ public class BuildManager {
         try {
             switch (format) {
                 case THIN -> KanvasJarTool.createJar(jar, manifest, roots);
-                case FAT -> KanvasJarTool.createJar(jar, manifest, roots, compileClasspath());
+                case FAT -> KanvasJarTool.createJar(jar, manifest, roots, runtimeClasspath());
                 case JAR_AND_DEPS -> {
                     attributes.put(Attributes.Name.CLASS_PATH, String.join(" ", copyLibraries(lib)));
                     KanvasJarTool.createJar(jar, manifest, roots);
@@ -167,7 +170,7 @@ public class BuildManager {
         Set<String> names = new HashSet<>();
         List<String> classPath = new ArrayList<>();
         List<Path> runtime = kanvasRuntime();
-        for (Path entry : compileClasspath()) {
+        for (Path entry : runtimeClasspath()) {
             boolean directory = Files.isDirectory(entry);
             String base = directory ? (runtime.contains(entry) ? "kanvas" : entry.getFileName().toString()) + ".jar" : entry.getFileName().toString();
             String name = base;
@@ -220,11 +223,17 @@ public class BuildManager {
         return roots;
     }
 
-    public List<Path> compileClasspath() throws KanvasException {
+    public List<Path> compileClasspath() throws KanvasException { return classpath(true); }
+    public List<Path> runtimeClasspath() throws KanvasException { return classpath(false); }
+
+    private List<Path> classpath(boolean compile) throws KanvasException {
         List<Path> classpath = new ArrayList<>(kanvasRuntime());
         classpath.addAll(project.runtimeSettings().classpath());
-        if (dependencyClasspath == null) dependencyClasspath = new DependencyResolver(project).classpath();
-        classpath.addAll(dependencyClasspath);
+        if (dependencies == null) dependencies = new DependencyResolver(project).resolve();
+        for (ResolvedDependency dependency : dependencies) {
+            Dependency.Scope scope = dependency.dependency().scope();
+            if (compile ? scope.onCompileClasspath() : scope.onRuntimeClasspath()) classpath.add(dependency.path());
+        }
         return classpath;
     }
 

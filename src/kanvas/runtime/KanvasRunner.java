@@ -39,7 +39,7 @@ public class KanvasRunner {
         List<String> classpath = new ArrayList<>();
         classpath.add(layout.classes().toString());
         classpath.add(layout.resources().toString());
-        for (Path entry : new BuildManager(project).compileClasspath()) classpath.add(entry.toString());
+        for (Path entry : new BuildManager(project).runtimeClasspath()) classpath.add(entry.toString());
 
         List<String> command = new ArrayList<>();
         command.add("java");
