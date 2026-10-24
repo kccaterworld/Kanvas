@@ -32,6 +32,7 @@ public class Main {
     }
 
     private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "test", "help");
+    private static final List<String> PACKAGE_FORMATS = List.of("thin", "jar-and-deps", "fat");
     private static final Map<String, String> FAILURE_PREFIXES = Map.of(
         "create", "Create failed: ",
         "config", "Config failed: ",
@@ -90,10 +91,13 @@ public class Main {
                 KanvasInstaller.install(parseArguments(args, 0, Set.of("dir"), Set.of()).flags().get("dir"));
             } break;
             case "package": {
-                parseArguments(args, 0, Set.of(), Set.of());
-                new BuildManager(loadProject()).packageProject();
+                String format = parseArguments(args, 0, Set.of("format"), Set.of()).flags().get("format");
+                if (format != null && !PACKAGE_FORMATS.contains(format))
+                    throw new KanvasException("--format must be one of " + String.join(", ", PACKAGE_FORMATS) + ", found '" + format + "'" + closest(format, PACKAGE_FORMATS).map(f -> ". Did you mean '" + f + "'?").orElse(""));
+                Path jar = new BuildManager(loadProject(format == null ? Map.of() : Map.of("packaging.format", format))).packageProject();
+                System.out.println("Packaged " + Paths.get("").toAbsolutePath().relativize(jar.toAbsolutePath()));
             } break;
-            case "clean": { // Delete `build/` and `.kanvas/cache` directories
+            case "clean": {
                 parseArguments(args, 0, Set.of(), Set.of());
                 new BuildManager(loadProject()).clean();
             } break;
@@ -248,8 +252,11 @@ public class Main {
     }
 
     // Wrapper for simple find project-ing
-    private static Project loadProject() throws KanvasException {
-        return ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get("")));
+    private static Project loadProject() throws KanvasException { return loadProject(Map.of()); }
+
+    // Overrides apply to this run only; kanvas.toml is never changed.
+    private static Project loadProject(Map<String, String> overrides) throws KanvasException {
+        return ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get("")), overrides);
     }
 
     private static void printHelp() {
