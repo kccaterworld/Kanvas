@@ -212,6 +212,8 @@ public class BuildManager {
         List<Path> roots = new ArrayList<>(project.sourceRoots());
         roots.addAll(project.resourceRoots());
         roots.addAll(project.dependencyRoots());
+        for (Dependency dependency : project.dependencies())
+            if (dependency instanceof Dependency.Local local) roots.add(local.path());
         roots.add(project.scriptDir().resolve(ProjectLoader.CONFIG_FILE));
         return roots;
     }
