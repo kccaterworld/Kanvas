@@ -9,7 +9,7 @@ public record Project(String name, String version, String author, String descrip
         List<Path> entryPoints,
         List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
         BuildLayout buildLayout,
-        List<String> dependencyDeclarations,
+        List<Dependency> dependencies,
         Map<String, Profile> profiles,
         CompilerSettings compilerSettings, RuntimeSettings runtimeSettings, PackagingSettings packagingSettings
 ) {
@@ -30,8 +30,7 @@ public record Project(String name, String version, String author, String descrip
         resourceRoots = List.copyOf(resourceRoots);
         dependencyRoots = List.copyOf(dependencyRoots);
         Objects.requireNonNull(buildLayout, "buildLayout");
-        dependencyDeclarations = List.copyOf(dependencyDeclarations);
-        if (!dependencyDeclarations.isEmpty() && dependencyRoots.isEmpty()) throw new IllegalArgumentException("dependencies are declared but there is no dependency root to find them in");
+        dependencies = List.copyOf(dependencies);
         profiles = Map.copyOf(profiles);
         Objects.requireNonNull(compilerSettings, "compilerSettings");
         Objects.requireNonNull(runtimeSettings, "runtimeSettings");
@@ -40,10 +39,26 @@ public record Project(String name, String version, String author, String descrip
 
     public Path cacheDir() { return scriptDir.resolve(CACHE_DIR).normalize(); }
 
+    public List<Path> mavenRepositories() {
+        String local = System.getProperty("maven.repo.local");
+        Path m2 = local != null && !local.isBlank() ? Path.of(local) : Path.of(System.getProperty("user.home"), ".m2", "repository");
+        return List.of(cacheDir().resolve("maven"), m2.toAbsolutePath().normalize());
+    }
+
+    public List<Path> candidates(Dependency dependency) {
+        return switch (dependency) {
+            case Dependency.Local local -> List.of(local.path());
+            case Dependency.Maven maven -> mavenRepositories().stream().map(maven::repositoryPath).toList();
+        };
+    }
+
+    public Path locate(Dependency dependency) {
+        List<Path> candidates = candidates(dependency);
+        return candidates.stream().filter(java.nio.file.Files::exists).findFirst().orElse(candidates.getFirst());
+    }
+
     public List<Path> dependencyClasspath() {
-        if (dependencyDeclarations.isEmpty()) return List.of();
-        Path lib = dependencyRoots.getFirst();
-        return dependencyDeclarations.stream().map(dependency -> lib.resolve(dependency).normalize()).toList();
+        return dependencies.stream().map(this::locate).toList();
     }
 
     public String launchClass() {
