@@ -130,8 +130,8 @@ public class BuildManager {
 
     public Path packageProject() throws KanvasException {
         Project.PACKAGE_FORMAT format = project.packagingSettings().format();
-        if (format != Project.PACKAGE_FORMAT.THIN)
-            throw new KanvasException("packaging.format = \"" + format.name().toLowerCase(Locale.ROOT).replace('_', '-') + "\" is not supported yet. Only \"thin\" JARs can be packaged for now.");
+        if (format == Project.PACKAGE_FORMAT.LAUNCHER)
+            throw new KanvasException("packaging.format = \"launcher\" is not supported yet. Use \"thin\", \"jar-and-deps\" or \"fat\".");
         buildIfNeeded();
 
         Manifest manifest = new Manifest();
@@ -143,9 +143,42 @@ public class BuildManager {
 
         Project.BuildLayout layout = project.buildLayout();
         Path jar = layout.output().resolve(project.packagingSettings().jarName());
-        try { KanvasJarTool.createJar(jar, manifest, List.of(layout.classes(), layout.resources()));
+        Path lib = layout.output().resolve("lib");
+        deleteDirectory(lib, "modules.buildDir"); // drop JARs left by an earlier jar-and-deps package
+        List<Path> roots = List.of(layout.classes(), layout.resources());
+        try {
+            switch (format) {
+                case THIN -> KanvasJarTool.createJar(jar, manifest, roots);
+                case FAT -> KanvasJarTool.createJar(jar, manifest, roots, compileClasspath());
+                case JAR_AND_DEPS -> {
+                    attributes.put(Attributes.Name.CLASS_PATH, String.join(" ", copyLibraries(lib)));
+                    KanvasJarTool.createJar(jar, manifest, roots);
+                }
+                default -> throw new IllegalStateException(format.name());
+            }
         } catch (IOException e) { throw new KanvasException("Failed to create " + jar + ": " + e.getMessage(), e); }
         return jar;
+    }
+
+    private List<String> copyLibraries(Path lib) throws IOException {
+        Files.createDirectories(lib);
+        Set<String> names = new HashSet<>();
+        List<String> classPath = new ArrayList<>();
+        List<Path> runtime = kanvasRuntime();
+        for (Path entry : compileClasspath()) {
+            boolean directory = Files.isDirectory(entry);
+            String base = directory ? (runtime.contains(entry) ? "kanvas" : entry.getFileName().toString()) + ".jar" : entry.getFileName().toString();
+            String name = base;
+            for (int i = 2; !names.add(name.toLowerCase(Locale.ROOT)); i++) name = base.replaceFirst("(\\.jar)?$", "-" + i + ".jar");
+            Path target = lib.resolve(name);
+            if (directory) {
+                Manifest manifest = new Manifest();
+                manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+                KanvasJarTool.createJar(target, manifest, List.of(entry));
+            } else Files.copy(entry, target);
+            classPath.add("lib/" + name.replace("%", "%25").replace(" ", "%20"));
+        }
+        return classPath;
     }
 
     // Deletes the build directory and the cache.
