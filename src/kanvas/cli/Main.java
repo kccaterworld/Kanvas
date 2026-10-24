@@ -32,7 +32,7 @@ public class Main {
         if (remaining.length > 0) runCommand(remaining);
     }
 
-    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "dependencies", "test", "help");
+    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "dependencies", "add", "remove", "help");
     private static final List<String> PACKAGE_FORMATS = List.of("thin", "jar-and-deps", "fat");
     private static final Map<String, String> FAILURE_PREFIXES = Map.of(
         "create", "Create failed: ",
@@ -43,7 +43,8 @@ public class Main {
         "package", "Package failed: ",
         "clean", "Clean failed: ",
         "dependencies", "Dependencies failed: ",
-        "test", "Test failed: "
+        "add", "Add failed: ",
+        "remove", "Remove failed: "
     );
 
     private static void runCommand(String[] args) {
@@ -80,28 +81,39 @@ public class Main {
                 System.out.print(ProjectWriter.write(ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get(project)), overrides)));
             } break;
             case "build": {
-                parseArguments(args, 0, Set.of(), Set.of());
-                new BuildManager(loadProject()).build();
+                boolean locked = parseArguments(args, 0, Set.of(), Set.of("locked")).switches().contains("locked");
+                new BuildManager(loadProject(), locked).build();
             } break;
             case "run": {
-                parseArguments(args, 0, Set.of(), Set.of());
+                boolean locked = parseArguments(args, 0, Set.of(), Set.of("locked")).switches().contains("locked");
                 Project project = loadProject();
-                new BuildManager(project).buildIfNeeded();
+                new BuildManager(project, locked).buildIfNeeded();
                 KanvasRunner.run(project);
             } break;
             case "install": {
                 KanvasInstaller.install(parseArguments(args, 0, Set.of("dir"), Set.of()).flags().get("dir"));
             } break;
             case "package": {
-                String format = parseArguments(args, 0, Set.of("format"), Set.of()).flags().get("format");
+                Arguments packaging = parseArguments(args, 0, Set.of("format"), Set.of("locked"));
+                String format = packaging.flags().get("format");
                 if (format != null && !PACKAGE_FORMATS.contains(format))
                     throw new KanvasException("--format must be one of " + String.join(", ", PACKAGE_FORMATS) + ", found '" + format + "'" + closest(format, PACKAGE_FORMATS).map(f -> ". Did you mean '" + f + "'?").orElse(""));
-                Path jar = new BuildManager(loadProject(format == null ? Map.of() : Map.of("packaging.format", format))).packageProject();
+                Path jar = new BuildManager(loadProject(format == null ? Map.of() : Map.of("packaging.format", format)), packaging.switches().contains("locked")).packageProject();
                 System.out.println("Packaged " + Paths.get("").toAbsolutePath().relativize(jar.toAbsolutePath()));
             } break;
             case "dependencies": {
                 parseArguments(args, 0, Set.of(), Set.of());
                 System.out.print(new DependencyResolver(loadProject()).tree());
+            } break;
+            case "add": {
+                Arguments add = parseArguments(args, 1, Set.of("scope", "path"), Set.of());
+                if (add.positional().isEmpty()) throw new KanvasException("Missing dependency. Usage: kanvas add <group:artifact[:version]> [--scope <scope>]  or  kanvas add <name> --path <file>");
+                addDependency(add.positional().getFirst(), add.flags().get("scope"), add.flags().get("path"));
+            } break;
+            case "remove": {
+                Arguments remove = parseArguments(args, 1, Set.of(), Set.of());
+                if (remove.positional().isEmpty()) throw new KanvasException("Missing dependency. Usage: kanvas remove <group:artifact | name>");
+                removeDependency(remove.positional().getFirst());
             } break;
             case "clean": {
                 parseArguments(args, 0, Set.of(), Set.of());
@@ -113,6 +125,59 @@ public class Main {
             default: {
                 throw new KanvasException("Unknown command '" + args[0] + "'" + closest(args[0], COMMANDS).map(command -> ". Did you mean '" + command + "'?").orElse("") + " (see `kanvas help` for the commands)");
             }
+        }
+    }
+
+    // Edits kanvas.toml, then resolves so kanvas.lock and the cache are up to date. If that fails, kanvas.toml is put back.
+    private static void addDependency(String spec, String scopeName, String path) throws KanvasException {
+        Path config = ProjectLoader.locateProject(Paths.get(""));
+        Project project = ProjectLoader.loadProject(config);
+        Dependency.Scope scope = scopeName == null ? Dependency.Scope.COMPILE : Dependency.Scope.parse(scopeName);
+        if (scope == null) throw new KanvasException("--scope must be compile, runtime or provided, found '" + scopeName + "'");
+        Dependency dependency;
+        if (path != null) {
+            if (spec.contains(":")) throw new KanvasException("--path needs a plain name, such as `kanvas add utils --path lib/utils.jar`");
+            dependency = new Dependency.Local(spec, project.scriptDir().resolve(path).normalize(), scope);
+        } else {
+            String[] parts = spec.split(":", -1);
+            if (parts.length < 2 || parts.length > 3) throw new KanvasException("Write Maven dependencies as group:artifact or group:artifact:version, found '" + spec + "'");
+            String version = parts.length == 3 ? parts[2] : new DependencyResolver(project).latestVersion(parts[0], parts[1]);
+            String problem = Dependency.Maven.problem(parts[0], parts[1], version);
+            if (problem != null) throw new KanvasException(spec + ": " + problem);
+            Map<String, String> natives = Map.of(); // keep natives already declared for this artifact
+            for (Dependency existing : project.dependencies())
+                if (existing instanceof Dependency.Maven maven && maven.key().equals(parts[0] + ":" + parts[1])) natives = maven.natives();
+            dependency = new Dependency.Maven(parts[0], parts[1], version, scope, natives);
+        }
+        String before = readConfig(config);
+        String after = ProjectEditor.setDependency(before, dependency.key(), ProjectWriter.dependencyKey(dependency), ProjectWriter.dependencyValue(dependency, project.scriptDir()));
+        applyConfig(config, before, after);
+        System.out.println("Added " + dependency.key() + (dependency instanceof Dependency.Maven maven ? " " + maven.version() : "") + " to kanvas.toml");
+    }
+
+    private static void removeDependency(String spec) throws KanvasException {
+        Path config = ProjectLoader.locateProject(Paths.get(""));
+        String[] parts = spec.split(":");
+        String key = parts.length == 3 ? parts[0] + ":" + parts[1] : spec;
+        String before = readConfig(config);
+        applyConfig(config, before, ProjectEditor.removeDependency(before, key));
+        System.out.println("Removed " + key + " from kanvas.toml");
+    }
+
+    private static String readConfig(Path config) throws KanvasException {
+        try { return Files.readString(config, StandardCharsets.UTF_8);
+        } catch (IOException e) { throw new KanvasException("Failed to read " + config + ": " + e.getMessage(), e); }
+    }
+
+    private static void applyConfig(Path config, String before, String after) throws KanvasException {
+        try {
+            Files.writeString(config, after, StandardCharsets.UTF_8);
+            new DependencyResolver(ProjectLoader.loadProject(config)).resolve();
+        } catch (KanvasException | IOException e) {
+            try { Files.writeString(config, before, StandardCharsets.UTF_8);
+            } catch (IOException restore) { e.addSuppressed(restore); }
+            throw e instanceof KanvasException k ? new KanvasException(k.getMessage() + "\nkanvas.toml was left unchanged.", k)
+                : new KanvasException("Failed to write " + config + ": " + e.getMessage(), e);
         }
     }
 
