@@ -185,6 +185,129 @@ class BuildManagerTest {
     }
 
     @Test
+    void buildIfNeededSkipsUnchangedProjects() throws Exception {
+        Path sketch = writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Path asset = writeFile(tmp.resolve("assets/a.txt"), "a");
+        Path config = sketchProject(tmp);
+        BuildManager manager = new BuildManager(ProjectLoader.loadProject(config));
+
+        assertTrue(manager.buildIfNeeded(), "first build");
+        assertFalse(manager.buildIfNeeded(), "nothing changed");
+
+        Files.writeString(sketch, "void setup() { println(1); }");
+        assertTrue(manager.buildIfNeeded(), "source changed");
+        assertFalse(manager.buildIfNeeded());
+
+        Files.writeString(asset, "b");
+        assertTrue(manager.buildIfNeeded(), "resource changed");
+
+        Files.writeString(config, Files.readString(config) + "[compiler]\ntarget = 22\n");
+        BuildManager reloaded = new BuildManager(ProjectLoader.loadProject(config));
+        assertTrue(reloaded.buildIfNeeded(), "config changed");
+        assertFalse(reloaded.buildIfNeeded());
+
+        new BuildManager(ProjectLoader.loadProject(config)).clean();
+        assertTrue(reloaded.buildIfNeeded(), "cleaned");
+    }
+
+    @Test
+    void aFailedBuildIsNeverUpToDate() throws Exception {
+        Path sketch = writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        BuildManager manager = new BuildManager(ProjectLoader.loadProject(sketchProject(tmp)));
+        manager.build();
+
+        Files.writeString(sketch, "void setup() { undefinedCall(); }");
+        assertThrows(KanvasException.class, manager::buildIfNeeded);
+        assertThrows(KanvasException.class, manager::buildIfNeeded, "still broken, so it must build again");
+    }
+
+    @Test
+    void rebuildsDropOutputFromDeletedFiles() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Path extra = writeFile(tmp.resolve("src/extra.kvs"), "void setup() {}");
+        Path asset = writeFile(tmp.resolve("assets/old.txt"), "old");
+        Project project = build(sketchProject(tmp));
+        assertTrue(Files.isRegularFile(project.buildLayout().classes().resolve("kanvas/generated/Extra.class")));
+
+        Files.delete(extra);
+        Files.delete(asset);
+        new BuildManager(project).build();
+        assertFalse(Files.exists(project.buildLayout().classes().resolve("kanvas/generated/Extra.class")));
+        assertFalse(Files.exists(project.buildLayout().generated().resolve("kanvas/generated/Extra.java")));
+        assertFalse(Files.exists(project.buildLayout().resources().resolve("old.txt")));
+    }
+
+    @Test
+    void resourcesAreCopiedAndPackagedAtTheJarRoot() throws Exception {
+        writeFile(tmp.resolve("assets/text/greeting.txt"), "hello from assets");
+        Path config = javaApp(tmp, 21, "", """
+            public class App {
+                public static void main(String[] args) throws Exception {
+                    System.out.print(new String(App.class.getResourceAsStream("/text/greeting.txt").readAllBytes()));
+                }
+            }""");
+        Project project = ProjectLoader.loadProject(config);
+        Path jar = new BuildManager(project).packageProject();
+        assertEquals("hello from assets", Files.readString(project.buildLayout().resources().resolve("text/greeting.txt")));
+
+        Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar", jar.toString())
+            .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(0, process.waitFor(), output);
+        assertEquals("hello from assets", output);
+    }
+
+    @Test
+    void twoResourceFoldersCannotHoldTheSamePath() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        writeFile(tmp.resolve("assets/logo.png"), "a");
+        writeFile(tmp.resolve("more/logo.png"), "b");
+        Path config = writeProject(tmp, "name = \"s\"\nversion = \"1\"\n[modules]\nsrcDirs = [\"src\"]\nresourceDirs = [\"assets\", \"more\"]\n");
+        String message = assertThrows(KanvasException.class, () -> build(config)).getMessage();
+        assertTrue(message.contains("Two resource folders both contain logo.png"), message);
+    }
+
+    @Test
+    void cleanDeletesTheBuildAndCacheButNotTheProject() throws Exception {
+        Path sketch = writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Path config = sketchProject(tmp);
+        Project project = build(config);
+        writeFile(project.cacheDir().resolve("build.hash"), "abc");
+
+        new BuildManager(project).clean();
+        assertFalse(Files.exists(tmp.resolve("build")));
+        assertFalse(Files.exists(project.cacheDir()));
+        assertTrue(Files.isRegularFile(sketch));
+        assertTrue(Files.isRegularFile(config));
+
+        new BuildManager(project).clean(); // nothing left to delete
+    }
+
+    @Test
+    void cleanCacheLeavesTheBuild() throws Exception {
+        writeFile(tmp.resolve("src/main.kvs"), "void setup() {}");
+        Project project = build(sketchProject(tmp));
+        writeFile(project.cacheDir().resolve("build.hash"), "abc");
+
+        new BuildManager(project).cleanCache();
+        assertFalse(Files.exists(project.cacheDir()));
+        assertTrue(Files.isDirectory(tmp.resolve("build/classes")));
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({ "., the project directory", "src, contains src", "../outside, outside the project directory" })
+    void cleanRefusesToDeleteProjectFiles(String buildDir, String reason) throws Exception {
+        Path project = tmp.resolve("project");
+        Path sketch = writeFile(project.resolve("src/main.kvs"), "void setup() {}");
+        Path config = writeProject(project, "name = \"s\"\nversion = \"1\"\n[modules]\nsrcDirs = [\"src\"]\nbuildDir = \"" + buildDir + "\"\n");
+        Path outside = writeFile(tmp.resolve("outside/keep.txt"), "keep");
+
+        String message = assertThrows(KanvasException.class, () -> new BuildManager(ProjectLoader.loadProject(config)).clean()).getMessage();
+        assertTrue(message.contains(reason) && message.contains("modules.buildDir"), message);
+        for (Path file : List.of(sketch, config, outside)) assertTrue(Files.isRegularFile(file), file.toString());
+    }
+
+    @Test
     void sameFileNameInDifferentFoldersCoexists() throws Exception {
         writeFile(tmp.resolve("src/a/player.kvs"), "int a = 1;");
         writeFile(tmp.resolve("src/b/player.kvs"), "int b = 2;");
