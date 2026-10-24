@@ -249,6 +249,52 @@ class BuildManagerTest {
     }
 
     @Test
+    void nativesAreRunExtractedAndPackagedPerPlatform() throws Exception {
+        Path app = tmp.resolve("app");
+        Path base = app.resolve(".kanvas/cache/maven/org/lwjgl/lwjgl/3");
+        writeJar(base.resolve("lwjgl-3.jar"), Map.of("org/lwjgl/version.txt", "3".getBytes(StandardCharsets.UTF_8)));
+        Map<String, String> libraries = Map.of("windows", "windows/x64/lwjgl.dll", "linux", "linux/x64/liblwjgl.so", "macos", "macos/x64/liblwjgl.dylib");
+        for (Map.Entry<String, String> library : libraries.entrySet())
+            writeJar(base.resolve("lwjgl-3-natives-" + library.getKey() + ".jar"), Map.of(library.getValue(), library.getKey().getBytes(StandardCharsets.UTF_8)));
+        Path config = javaApp(app, 21, """
+            [packaging]
+            nativeTargets = ["linux", "windows"]
+            [dependencies]
+            "org.lwjgl:lwjgl" = { version = "3", natives = { windows = "natives-windows", linux = "natives-linux", macos = "natives-macos" } }
+            """, "public class App { public static void main(String[] args) {} }");
+        Project project = ProjectLoader.loadProject(config);
+        BuildManager manager = new BuildManager(project);
+
+        String here = Platform.current().os();
+        assertTrue(manager.runtimeClasspath().contains(base.resolve("lwjgl-3-natives-" + here + ".jar")));
+        assertEquals(1, manager.runtimeClasspath().stream().filter(path -> path.toString().contains("natives")).count(), "only this machine's natives");
+        assertTrue(manager.compileClasspath().stream().noneMatch(path -> path.toString().contains("natives")));
+
+        manager.build();
+        String library = libraries.get(here);
+        assertEquals(here, Files.readString(project.buildLayout().natives().resolve(library.substring(library.lastIndexOf('/') + 1))));
+
+        List<Path> packaged = manager.packageClasspath();
+        assertTrue(packaged.contains(base.resolve("lwjgl-3-natives-linux.jar")) && packaged.contains(base.resolve("lwjgl-3-natives-windows.jar"))
+            && !packaged.contains(base.resolve("lwjgl-3-natives-macos.jar")), packaged.toString());
+    }
+
+    @Test
+    void fatJarsAllowIdenticalFilesAndCombineNotices() throws Exception {
+        Path app = tmp.resolve("app");
+        writeJar(app.resolve("lib/a.jar"), Map.of("META-INF/LICENSE.txt", "Apache".getBytes(StandardCharsets.UTF_8), "shared/data.txt", "same".getBytes(StandardCharsets.UTF_8)));
+        writeJar(app.resolve("lib/b.jar"), Map.of("META-INF/LICENSE.txt", "MIT".getBytes(StandardCharsets.UTF_8), "shared/data.txt", "same".getBytes(StandardCharsets.UTF_8)));
+        writeJar(app.resolve("lib/c.jar"), Map.of("META-INF/LICENSE.txt", "Apache".getBytes(StandardCharsets.UTF_8)));
+        Path config = javaApp(app, 21, "dependencies = [\"a.jar\", \"b.jar\", \"c.jar\"]\n[packaging]\nformat = \"fat\"\n", "public class App {}");
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertEquals("same", new String(file.getInputStream(file.getEntry("shared/data.txt")).readAllBytes(), StandardCharsets.UTF_8));
+            assertEquals("=== a.jar ===\nApache\n\n=== b.jar ===\nMIT\n\n",
+                new String(file.getInputStream(file.getEntry("META-INF/LICENSE.txt")).readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
     void buildsAgainstALocalClassDirectory() throws Exception {
         Path classes = Files.createDirectories(tmp.resolve("shared/classes"));
         Path source = writeFile(tmp.resolve("shared/src/greet/Greeter.java"), "package greet; public class Greeter { public static String greet() { return \"hi\"; } }");

@@ -104,6 +104,31 @@ class ProjectLoaderTest {
     }
 
     @Test
+    void readsNativesAndChecksPlatformNames() throws Exception {
+        Path config = writeProject(tmp, MINIMAL + """
+            [packaging]
+            nativeTargets = ["windows", "macos-arm64"]
+            [dependencies]
+            "org.lwjgl:lwjgl" = { version = "3.3.3", natives = { windows = "natives-windows", macos-arm64 = "natives-macos-arm64" } }
+            """);
+        Project project = ProjectLoader.loadProject(config);
+        assertEquals(Map.of("windows", "natives-windows", "macos-arm64", "natives-macos-arm64"), ((Dependency.Maven) project.dependencies().getFirst()).natives());
+        assertTrue(ProjectWriter.write(project).contains("\"org.lwjgl:lwjgl\" = { version = \"3.3.3\", natives = { macos-arm64 = \"natives-macos-arm64\", windows = \"natives-windows\" } }"));
+
+        Path bad = writeProject(tmp, MINIMAL + """
+            [packaging]
+            nativeTargets = ["amiga"]
+            [dependencies]
+            "g:a" = { version = "1", natives = { solaris = "natives-solaris", linux = "../evil" } }
+            local = { path = "x.jar", natives = { linux = "natives-linux" } }
+            """);
+        String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.loadProject(bad)).getMessage();
+        for (String expected : List.of("packaging.nativeTargets has unknown platform 'amiga'", "has unknown platform 'solaris'",
+                "natives.linux must be a classifier", "dependencies.\"local\".natives only works for Maven dependencies"))
+            assertTrue(message.contains(expected), expected + "\n" + message);
+    }
+
+    @Test
     void readsAndWritesScopes() throws Exception {
         Path config = writeProject(tmp, MINIMAL + """
             [dependencies]

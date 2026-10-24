@@ -71,11 +71,16 @@ class DependencyResolverTest {
     private void publish(String coordinate, String body) throws Exception {
         String[] p = coordinate.split(":");
         Path dir = tmp.resolve("remote/" + p[0].replace('.', '/') + "/" + p[1] + "/" + p[2]);
-        writeFile(dir.resolve(p[1] + "-" + p[2] + ".pom"), "<project><groupId>" + p[0] + "</groupId><artifactId>" + p[1]
-            + "</artifactId><version>" + p[2] + "</version>" + body + "</project>");
-        if (!body.contains("<packaging>pom</packaging>")) writeFile(dir.resolve(p[1] + "-" + p[2] + ".jar"), coordinate);
+        withChecksum(writeFile(dir.resolve(p[1] + "-" + p[2] + ".pom"), "<project><groupId>" + p[0] + "</groupId><artifactId>" + p[1]
+            + "</artifactId><version>" + p[2] + "</version>" + body + "</project>"));
+        if (!body.contains("<packaging>pom</packaging>")) withChecksum(writeFile(dir.resolve(p[1] + "-" + p[2] + ".jar"), coordinate));
     }
 
+    // Writes file.sha256 next to the file, as Maven Central does.
+    private static Path withChecksum(Path file) throws Exception {
+        writeFile(file.resolveSibling(file.getFileName() + ".sha256"), RemoteRepository.hash(file, "SHA-256") + "  " + file.getFileName());
+        return file;
+    }
     private static String deps(String... dependencies) { return "<dependencies>" + String.join("", dependencies) + "</dependencies>"; }
 
     private static String dep(String coordinate, String... extra) {
@@ -127,7 +132,8 @@ class DependencyResolverTest {
         assertEquals(List.of("Downloading com.example:lib:1.0 (pom) from " + repository("remote"),
             "Downloading com.example:lib:1.0 (jar) from " + repository("remote")), log);
         try (var files = Files.list(cached.getParent())) {
-            assertEquals(List.of("lib-1.0.jar", "lib-1.0.pom"), files.map(file -> file.getFileName().toString()).sorted().toList(), "no temp files left");
+            assertEquals(List.of("lib-1.0.jar", "lib-1.0.jar.repository", "lib-1.0.pom", "lib-1.0.pom.repository"),
+                files.map(file -> file.getFileName().toString()).sorted().toList(), "no temp files left; each download records its repository");
         }
 
         requests.clear();
@@ -141,7 +147,8 @@ class DependencyResolverTest {
         Project project = project(List.of(repository("broken"), repository("empty"), repository("remote-b")), "\"com.example:lib\" = \"1.0\"\n");
         assertEquals("from b", Files.readString(resolve(project).getFirst().path()));
         assertEquals(List.of("/broken/com/example/lib/1.0/lib-1.0.pom", "/empty/com/example/lib/1.0/lib-1.0.pom", "/remote-b/com/example/lib/1.0/lib-1.0.pom",
-            "/broken/com/example/lib/1.0/lib-1.0.jar", "/empty/com/example/lib/1.0/lib-1.0.jar", "/remote-b/com/example/lib/1.0/lib-1.0.jar"), requests);
+            "/broken/com/example/lib/1.0/lib-1.0.jar", "/empty/com/example/lib/1.0/lib-1.0.jar", "/remote-b/com/example/lib/1.0/lib-1.0.jar",
+            "/remote-b/com/example/lib/1.0/lib-1.0.jar.sha256", "/remote-b/com/example/lib/1.0/lib-1.0.jar.sha1"), requests, "the checksum is looked up as .sha256, then .sha1");
     }
 
     @Test
@@ -280,5 +287,101 @@ class DependencyResolverTest {
             \\--- utils (lib/utils.jar) [runtime]
             (*) listed above with its dependencies
             """, new DependencyResolver(project, line -> {}).tree());
+    }
+
+    private static void deleteRecursively(Path dir) throws Exception {
+        if (!Files.exists(dir)) return;
+        try (var files = Files.walk(dir)) { for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.delete(file); }
+    }
+
+    @Test
+    void verifiesChecksumsAndWarnsWhenThereAreNone() throws Exception {
+        publish("g:bad:1", "");
+        Files.writeString(tmp.resolve("remote/g/bad/1/bad-1.jar"), "tampered"); // no longer matches its .sha256
+        String message = assertThrows(DependencyException.class, () -> resolve(project("\"g:bad\" = \"1\"\n"))).getMessage();
+        assertTrue(message.contains("checksum mismatch") && message.contains("bad-1.jar.sha256"), message);
+        assertFalse(Files.exists(tmp.resolve("p/.kanvas/cache/maven/g/bad/1/bad-1.jar")), "a file that fails its checksum is never kept");
+
+        Path sha1Only = writeFile(tmp.resolve("remote/g/old/1/old-1.jar"), "old");
+        writeFile(tmp.resolve("remote/g/old/1/old-1.jar.sha1"), RemoteRepository.hash(sha1Only, "SHA-1"));
+        writeFile(tmp.resolve("remote/g/none/1/none-1.jar"), "none");
+        List<String> log = new ArrayList<>();
+        new DependencyResolver(project("\"g:old\" = \"1\"\n\"g:none\" = \"1\"\n"), log::add).resolve();
+        List<String> warnings = log.stream().filter(line -> line.startsWith("Warning")).toList();
+        assertEquals(1, warnings.size(), log.toString());
+        assertTrue(warnings.getFirst().contains("none-1.jar has no .sha256 or .sha1 checksum"), warnings.getFirst());
+    }
+
+    @Test
+    void writesKanvasLockAndReproducesItsClasspathFromScratch() throws Exception {
+        publish("g:a:1", deps(dep("g:b:1")));
+        publish("g:b:1", "");
+        Project project = project("\"g:a\" = \"1\"\n");
+        List<String> first = describe(resolve(project));
+        String lock = Files.readString(project.lockFile());
+        assertTrue(lock.contains("coordinate = \"g:a:1\"") && lock.contains("coordinate = \"g:b:1\"")
+            && lock.contains("repository = \"" + repository("remote") + "\"") && lock.contains("sha256 = \""), lock);
+
+        // The lock pins versions even if a library's POM changes, and an empty cache is rebuilt without reading any POM.
+        publish("g:a:1", deps(dep("g:b:2")));
+        publish("g:b:2", "");
+        deleteRecursively(project.cacheDir());
+        requests.clear();
+        assertEquals(first, describe(resolve(project)));
+        assertTrue(requests.stream().noneMatch(request -> request.endsWith(".pom")), requests.toString());
+        assertEquals(lock, Files.readString(project.lockFile()), "an up-to-date lock isn't rewritten");
+    }
+
+    @Test
+    void aChangedFileFailsTheLockCheck() throws Exception {
+        publish("g:a:1", "");
+        Project project = project("\"g:a\" = \"1\"\n");
+        Files.writeString(resolve(project).getFirst().path(), "changed");
+        String message = assertThrows(DependencyException.class, () -> resolve(project)).getMessage();
+        assertTrue(message.contains("doesn't match kanvas.lock"), message);
+    }
+
+    @Test
+    void changingDependenciesUpdatesTheLockUnlessLocked() throws Exception {
+        publish("g:a:1", "");
+        publish("g:c:1", "");
+        Project project = project("\"g:a\" = \"1\"\n");
+        String message = assertThrows(DependencyException.class, () -> new DependencyResolver(project, line -> {}, true).resolve()).getMessage();
+        assertTrue(message.contains("kanvas.lock is missing"), message);
+        resolve(project);
+        new DependencyResolver(project, line -> {}, true).resolve();
+
+        Project changed = project("\"g:a\" = \"1\"\n\"g:c\" = \"1\"\n");
+        message = assertThrows(DependencyException.class, () -> new DependencyResolver(changed, line -> {}, true).resolve()).getMessage();
+        assertTrue(message.contains("kanvas.lock is out of date"), message);
+        resolve(changed);
+        assertTrue(Files.readString(changed.lockFile()).contains("g:c:1"));
+
+        Project none = project("");
+        resolve(none);
+        assertFalse(Files.exists(none.lockFile()), "with no Maven dependencies there is no lock");
+    }
+
+    @Test
+    void resolvesNativeJarsForEveryDeclaredPlatform() throws Exception {
+        publish("org.lwjgl:lwjgl:3", "");
+        for (String classifier : List.of("natives-windows", "natives-linux", "natives-macos"))
+            withChecksum(writeFile(tmp.resolve("remote/org/lwjgl/lwjgl/3/lwjgl-3-" + classifier + ".jar"), classifier));
+        Project project = project("\"org.lwjgl:lwjgl\" = { version = \"3\", natives = { windows = \"natives-windows\", linux = \"natives-linux\", macos = \"natives-macos\" } }\n");
+        List<ResolvedDependency> resolved = resolve(project);
+        assertEquals(Arrays.asList(null, "linux", "macos", "windows"), resolved.stream().map(ResolvedDependency::platform).toList());
+        assertTrue(resolved.stream().skip(1).allMatch(r -> r.dependency().scope() == Scope.RUNTIME && r.path().toString().endsWith(r.classifier() + ".jar")));
+        String lock = Files.readString(project.lockFile());
+        assertTrue(lock.contains("classifier = \"natives-linux\"") && lock.contains("platform = \"linux\""), lock);
+        assertTrue(new DependencyResolver(project, line -> {}).tree().contains("org.lwjgl:lwjgl:3 [natives: linux, macos, windows]"));
+    }
+
+    @Test
+    void findsTheLatestRelease() throws Exception {
+        writeFile(tmp.resolve("remote/g/lib/maven-metadata.xml"), "<metadata><versioning><versions><version>1.9</version><version>1.10</version>"
+            + "<version>2.0-rc1</version><version>2.0-SNAPSHOT</version></versions></versioning></metadata>");
+        assertEquals("1.10", new DependencyResolver(project(""), line -> {}).latestVersion("g", "lib"));
+        String message = assertThrows(DependencyException.class, () -> new DependencyResolver(project(""), line -> {}).latestVersion("g", "missing")).getMessage();
+        assertTrue(message.contains("No release of g:missing was found"), message);
     }
 }
