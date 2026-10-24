@@ -22,7 +22,14 @@ public final class ProjectWriter {
         line(toml, "description", string(project.description()));
         if (runtime.mainClass() != null) line(toml, "mainClass", string(runtime.mainClass()));
         line(toml, "classpath", paths(dir, runtime.classpath()));
-        line(toml, "dependencies", strings(project.dependencyDeclarations()));
+
+        toml.append("\n[dependencies]\n");
+        for (Dependency dependency : project.dependencies()) {
+            switch (dependency) {
+                case Dependency.Maven maven -> line(toml, key(maven.key()), string(maven.version()));
+                case Dependency.Local local -> line(toml, key(local.name()), "{ path = " + string(relative(dir, local.path())) + " }");
+            }
+        }
 
         toml.append("\n[modules]\n");
         line(toml, "srcDirs", paths(dir, project.sourceRoots()));
