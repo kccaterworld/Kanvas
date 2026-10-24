@@ -9,6 +9,8 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
 public class KanvasInstaller {
+    private static boolean alreadyInstalled = false;
+
     public static void install(String targetDir) throws KanvasException {
         Path jarPath = findJar();
         Path dir = (targetDir != null) ? Path.of(targetDir) : defaultInstallDir();
@@ -17,15 +19,17 @@ public class KanvasInstaller {
             Files.createDirectories(dir);
             if (isWindows) installWindows(dir, jarPath);
             else installUnix(dir, jarPath);
+            if (alreadyInstalled) return;
+            System.out.println(Text.style("Installed kanvas to: " + dir.toAbsolutePath(), "green"));
+            printPathInstructions(dir, isWindows);
         } catch (IOException e) { throw new KanvasException("Install failed: " + e.getMessage(), e); }
-        System.out.println(Text.style("Installed kanvas to: " + dir.toAbsolutePath(), "green"));
-        printPathInstructions(dir, isWindows);
     }
 
     private static void installWindows(Path dir, Path jarPath) throws IOException {
         Path bat = dir.resolve("kanvas.bat");
         String content = "@echo off\r\njava -jar \"" + jarPath.toAbsolutePath() + "\" %*\r\n";
         if (Files.exists(bat) && Files.readString(bat).equals(content)) {
+            alreadyInstalled = true;
             System.out.println(Text.style("Already up to date: " + bat.toAbsolutePath(), "green"));
             return;
         }
@@ -37,6 +41,7 @@ public class KanvasInstaller {
         Path script = dir.resolve("kanvas");
         String content = "#!/usr/bin/env sh\njava -jar \"" + jarPath.toAbsolutePath() + "\" \"$@\"\n";
         if (Files.exists(script) && Files.readString(script).equals(content)) {
+            alreadyInstalled = true;
             System.out.println(Text.style("Already up to date: " + script.toAbsolutePath(), "green"));
             return;
         }
