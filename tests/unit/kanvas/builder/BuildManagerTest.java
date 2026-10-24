@@ -211,6 +211,25 @@ class BuildManagerTest {
     }
 
     @Test
+    void buildsAgainstMavenJarsInTheProjectCache() throws Exception {
+        Path app = tmp.resolve("app");
+        greeterJar(app.resolve(".kanvas/cache/maven/com/example/greeter/1.0/greeter-1.0.jar"), Map.of());
+        Path config = javaApp(app, 21, "[dependencies]\n\"com.example:greeter\" = \"1.0\"\n[packaging]\nformat = \"fat\"\n", GREETING_APP);
+        assertEquals("hi KMath", runJar(new BuildManager(ProjectLoader.loadProject(config)).packageProject()));
+    }
+
+    @Test
+    void buildsAgainstALocalClassDirectory() throws Exception {
+        Path classes = Files.createDirectories(tmp.resolve("shared/classes"));
+        Path source = writeFile(tmp.resolve("shared/src/greet/Greeter.java"), "package greet; public class Greeter { public static String greet() { return \"hi\"; } }");
+        assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, "--release", "21", "-d", classes.toString(), source.toString()));
+        Path config = javaApp(tmp.resolve("app"), 21, "[dependencies]\nshared = { path = \"../shared/classes\" }\n[packaging]\nformat = \"jar-and-deps\"\n", GREETING_APP);
+        Path jar = new BuildManager(ProjectLoader.loadProject(config)).packageProject();
+        assertTrue(Files.isRegularFile(jar.resolveSibling("lib/classes.jar")));
+        assertEquals("hi KMath", runJar(jar));
+    }
+
+    @Test
     void jarAndDepsPutsTheRuntimeAndDependenciesInLib() throws Exception {
         Path app = tmp.resolve("app");
         greeterJar(app.resolve("lib/greeter.jar"), Map.of());

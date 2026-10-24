@@ -81,11 +81,87 @@ class ProjectLoaderTest {
         assertEquals(List.of("--fast"), runtime.programArgs());
         assertEquals(Map.of("MODE", "debug"), runtime.envVars());
 
-        assertEquals(List.of("gson.jar"), project.dependencyDeclarations());
+        assertEquals(List.of(new Dependency.Local("gson.jar", dir.resolve("lib/gson.jar"))), project.dependencies());
         assertEquals(List.of(dir.resolve("lib/gson.jar")), project.dependencyClasspath());
         assertEquals(List.of(dir.resolve("libs/extra"), dir.resolve("lib/gson.jar")), project.userClasspath());
 
         assertEquals(new Project.PackagingSettings("custom.jar", dir.resolve("icon.png"), List.of("linux"), Project.PACKAGE_FORMAT.JAR_AND_DEPS), project.packagingSettings());
+    }
+
+    @Test
+    void readsTheDependenciesTable() throws Exception {
+        Path config = writeProject(tmp, MINIMAL + """
+            [dependencies]
+            "com.google.code.gson:gson" = "2.10.1"
+            "org.joml:joml" = { version = "1.10.5" }
+            utils = { path = "libs/utils.jar" }
+            shared = { path = "../shared/classes" }
+            """);
+        Path dir = tmp.toAbsolutePath().normalize();
+        assertEquals(List.of(
+            new Dependency.Maven("com.google.code.gson", "gson", "2.10.1"),
+            new Dependency.Maven("org.joml", "joml", "1.10.5"),
+            new Dependency.Local("utils", dir.resolve("libs/utils.jar")),
+            new Dependency.Local("shared", dir.getParent().resolve("shared/classes"))), ProjectLoader.loadProject(config).dependencies());
+    }
+
+    @Test
+    void theLegacyArrayAndOverrideAcceptCoordinatesAndLibFiles() throws Exception {
+        Path config = writeProject(tmp, "dependencies = [\"org.joml:joml:1.10.5\", \"gson.jar\"]\n" + MINIMAL);
+        Path dir = tmp.toAbsolutePath().normalize();
+        List<Dependency> expected = List.of(new Dependency.Maven("org.joml", "joml", "1.10.5"), new Dependency.Local("gson.jar", dir.resolve("lib/gson.jar")));
+        assertEquals(expected, ProjectLoader.loadProject(config).dependencies());
+        assertEquals(expected, ProjectLoader.loadProject(writeProject(tmp, MINIMAL), Map.of("dependencies", "org.joml:joml:1.10.5, gson.jar")).dependencies());
+    }
+
+    @Test
+    void rejectsBadDependencies() throws Exception {
+        Path config = writeProject(tmp, MINIMAL + """
+            [dependencies]
+            utils = "1.0"
+            "a:b" = { version = "1", path = "x.jar" }
+            "a:b:c" = "1"
+            "../evil:x" = "1"
+            "g:ranged" = "[1.0,2.0)"
+            "g:noversion" = { }
+            local = { path = "x.jar", scope = "test" }
+            """);
+        String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.loadProject(config)).getMessage();
+        for (String expected : List.of(
+                "dependencies.\"utils\" needs { path = \"...\" }, or a \"group:artifact\" key with a version",
+                "dependencies.\"a:b\" has both version and path",
+                "dependencies.\"a:b:c\" must be written \"group:artifact\"",
+                "'../evil' is not a valid Maven group",
+                "version ranges like '[1.0,2.0)' are not supported",
+                "dependencies.\"g:noversion\" needs a version",
+                "Unknown key 'dependencies.\"local\".scope'"))
+            assertTrue(message.contains(expected), expected + "\n" + message);
+    }
+
+    @Test
+    void findsMavenJarsInTheProjectCacheThenTheLocalRepository() throws Exception {
+        Path m2 = tmp.resolve("m2");
+        String previous = System.setProperty("maven.repo.local", m2.toString());
+        try {
+            Path config = writeProject(tmp.resolve("p"), MINIMAL + "[dependencies]\n\"com.example:lib\" = \"1.0\"\n");
+            Project project = ProjectLoader.loadProject(config);
+            Dependency lib = project.dependencies().getFirst();
+            Path cached = project.cacheDir().resolve("maven/com/example/lib/1.0/lib-1.0.jar");
+            Path local = m2.toAbsolutePath().normalize().resolve("com/example/lib/1.0/lib-1.0.jar");
+            assertEquals(List.of(cached, local), project.candidates(lib));
+
+            String message = assertThrows(KanvasProjectException.class, () -> ProjectLoader.validateProject(project)).getMessage();
+            assertTrue(message.contains("Dependency com.example:lib:1.0 not found") && message.contains(cached.toString())
+                && message.contains(local.toString()) && message.contains("mvn dependency:get -Dartifact=com.example:lib:1.0"), message);
+
+            writeFile(local, "jar");
+            assertEquals(local, project.locate(lib));
+            ProjectLoader.validateProject(project);
+            writeFile(cached, "jar");
+            assertEquals(cached, project.locate(lib), "the project cache wins");
+        } finally {
+            if (previous == null) System.clearProperty("maven.repo.local"); else System.setProperty("maven.repo.local", previous);
+        }
     }
 
     @Test
