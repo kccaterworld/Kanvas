@@ -1,6 +1,7 @@
 package kanvas.builder;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.jar.*;
@@ -9,6 +10,7 @@ import java.util.stream.Stream;
 
 public class KanvasJarTool {
     private static final String SERVICES = "META-INF/services/";
+    private static final Pattern NOTICE = Pattern.compile("(?i)(META-INF/)?(LICENSE|NOTICE)(\\.(txt|md))?");
     private static final Pattern DROPPED = Pattern.compile("(?i)META-INF/(INDEX\\.LIST|SIG-[^/]*|[^/]*\\.(SF|RSA|DSA|EC))|(META-INF/versions/\\d+/)?module-info\\.class");
 
     private interface Content { void writeTo(OutputStream out) throws IOException; }
@@ -54,24 +56,39 @@ public class KanvasJarTool {
         } catch (UncheckedIOException e) { throw e.getCause(); }
     }
 
-    private static void add(String name, Source source, Map<String, Source> entries, Map<String, List<Source>> services) throws IOException {
+    private static void add(String name, Source source, Map<String, Source> entries, Map<String, List<Source>> combined) throws IOException {
         if (name.equalsIgnoreCase(JarFile.MANIFEST_NAME)) return;
-        if (name.startsWith(SERVICES)) { services.computeIfAbsent(name, key -> new ArrayList<>()).add(source); return; }
+        if (name.startsWith(SERVICES) || NOTICE.matcher(name).matches()) { combined.computeIfAbsent(name, key -> new ArrayList<>()).add(source); return; }
         Source previous = entries.putIfAbsent(name, source);
-        if (previous != null) throw new IOException(name + " is in both " + previous.origin() + " and " + source.origin());
+        if (previous != null && !Arrays.equals(bytes(previous), bytes(source)))
+            throw new IOException(name + " is in both " + previous.origin() + " and " + source.origin() + ", with different contents");
+    }
+
+    private static byte[] bytes(Source source) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        source.content().writeTo(out);
+        return out.toByteArray();
     }
 
     private static void write(Path jar, Manifest manifest, Map<String, Source> entries, Map<String, List<Source>> services) throws IOException {
         Map<String, Content> all = new TreeMap<>();
         entries.forEach((name, source) -> all.put(name, source.content()));
-        services.forEach((name, sources) -> all.put(name, out -> {
-            for (Source source : sources) {
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                source.content().writeTo(bytes);
-                out.write(bytes.toByteArray());
-                if (bytes.size() > 0 && bytes.toByteArray()[bytes.size() - 1] != '\n') out.write('\n');
-            }
-        }));
+        services.forEach((name, sources) -> all.put(name, (name.startsWith(SERVICES) ?
+            out -> {
+                for (Source source : sources) {
+                    byte[] bytes = bytes(source);
+                    out.write(bytes);
+                    if (bytes.length > 0 && bytes[bytes.length - 1] != '\n') out.write('\n');
+                }
+            } : out -> {
+                Map<String, String> distinct = new LinkedHashMap<>();
+                for (Source source : sources) distinct.putIfAbsent(new String(bytes(source), StandardCharsets.UTF_8), source.origin());
+                if (distinct.size() == 1) { out.write(distinct.keySet().iterator().next().getBytes(StandardCharsets.UTF_8)); return; }
+                StringBuilder text = new StringBuilder();
+                distinct.forEach((content, origin) -> text.append("=== ").append(Path.of(origin).getFileName()).append(" ===\n").append(content.strip()).append("\n\n"));
+                out.write(text.toString().getBytes(StandardCharsets.UTF_8));
+            })
+        ));
         Set<String> directories = new TreeSet<>();
         for (String name : all.keySet())
             for (int slash = name.indexOf('/'); slash >= 0; slash = name.indexOf('/', slash + 1)) directories.add(name.substring(0, slash + 1));

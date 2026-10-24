@@ -19,10 +19,14 @@ public class BuildManager {
     private static final int RUNTIME_RELEASE = 21;
 
     private final Project project;
+    private final boolean locked;
     private List<ResolvedDependency> dependencies;
 
-    public BuildManager(Project project) {
+    public BuildManager(Project project) { this(project, false); }
+
+    public BuildManager(Project project, boolean locked) {
         this.project = project;
+        this.locked = locked;
     }
 
     public boolean buildIfNeeded() throws KanvasException {
@@ -41,7 +45,7 @@ public class BuildManager {
         Path fingerprintFile = fingerprintFile();
         try { Files.deleteIfExists(fingerprintFile);
         } catch (IOException e) { throw new KanvasException("Failed to delete " + fingerprintFile + ": " + e.getMessage(), e); }
-        for (Path dir : List.of(layout.generated(), layout.classes(), layout.resources())) deleteDirectory(dir, "modules.buildDir");
+        for (Path dir : List.of(layout.generated(), layout.classes(), layout.resources(), layout.natives())) deleteDirectory(dir, "modules.buildDir");
         for (Path dir : List.of(layout.generated(), layout.classes(), layout.resources(), layout.output())) {
             try { Files.createDirectories(dir);
             } catch (IOException e) { throw new KanvasException("Failed to create build directory " + dir + ": " + e.getMessage(), e); }
@@ -70,6 +74,7 @@ public class BuildManager {
         } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error while compiling", e); }
 
         copyResources(layout.resources());
+        extractNatives(layout.natives());
         try {
             Files.createDirectories(fingerprintFile.getParent());
             Files.writeString(fingerprintFile, fingerprint);
@@ -154,7 +159,7 @@ public class BuildManager {
         try {
             switch (format) {
                 case THIN -> KanvasJarTool.createJar(jar, manifest, roots);
-                case FAT -> KanvasJarTool.createJar(jar, manifest, roots, runtimeClasspath());
+                case FAT -> KanvasJarTool.createJar(jar, manifest, roots, packageClasspath());
                 case JAR_AND_DEPS -> {
                     attributes.put(Attributes.Name.CLASS_PATH, String.join(" ", copyLibraries(lib)));
                     KanvasJarTool.createJar(jar, manifest, roots);
@@ -170,7 +175,7 @@ public class BuildManager {
         Set<String> names = new HashSet<>();
         List<String> classPath = new ArrayList<>();
         List<Path> runtime = kanvasRuntime();
-        for (Path entry : runtimeClasspath()) {
+        for (Path entry : packageClasspath()) {
             boolean directory = Files.isDirectory(entry);
             String base = directory ? (runtime.contains(entry) ? "kanvas" : entry.getFileName().toString()) + ".jar" : entry.getFileName().toString();
             String name = base;
@@ -223,18 +228,62 @@ public class BuildManager {
         return roots;
     }
 
-    public List<Path> compileClasspath() throws KanvasException { return classpath(true); }
-    public List<Path> runtimeClasspath() throws KanvasException { return classpath(false); }
+    public List<Path> compileClasspath() throws KanvasException { return classpath(true, List.of()); }
 
-    private List<Path> classpath(boolean compile) throws KanvasException {
+    public List<Path> runtimeClasspath() throws KanvasException { return classpath(false, List.of(Platform.current())); }
+
+    public List<Path> packageClasspath() throws KanvasException {
+        List<Platform> targets = project.packagingSettings().nativeTargets().stream().map(Platform::parse).toList();
+        return classpath(false, targets.isEmpty() ? List.of(Platform.current()) : targets);
+    }
+
+    private List<Path> classpath(boolean compile, List<Platform> platforms) throws KanvasException {
         List<Path> classpath = new ArrayList<>(kanvasRuntime());
         classpath.addAll(project.runtimeSettings().classpath());
-        if (dependencies == null) dependencies = new DependencyResolver(project).resolve();
-        for (ResolvedDependency dependency : dependencies) {
+        for (ResolvedDependency dependency : dependencies()) {
+            if (dependency.isNative()) {
+                if (!compile && selected(dependency, platforms)) classpath.add(dependency.path());
+                continue;
+            }
             Dependency.Scope scope = dependency.dependency().scope();
             if (compile ? scope.onCompileClasspath() : scope.onRuntimeClasspath()) classpath.add(dependency.path());
         }
         return classpath;
+    }
+
+    private List<ResolvedDependency> dependencies() throws KanvasException {
+        if (dependencies == null) dependencies = new DependencyResolver(project, System.out::println, locked).resolve();
+        return dependencies;
+    }
+
+    private boolean selected(ResolvedDependency nativeJar, List<Platform> platforms) throws KanvasException {
+        Set<String> keys = new HashSet<>();
+        for (ResolvedDependency other : dependencies())
+            if (other.isNative() && other.dependency().key().equals(nativeJar.dependency().key())) keys.add(other.platform());
+        for (Platform platform : platforms) if (platform.select(keys).contains(nativeJar.platform())) return true;
+        return false;
+    }
+
+    private void extractNatives(Path target) throws KanvasException {
+        Map<String, Path> extracted = new HashMap<>();
+        List<Platform> here = List.of(Platform.current());
+        for (ResolvedDependency dependency : dependencies()) {
+            if (!dependency.isNative() || !selected(dependency, here)) continue;
+            try (JarFile jar = new JarFile(dependency.path().toFile())) {
+                for (JarEntry entry : Collections.list(jar.entries())) {
+                    String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                    if (entry.isDirectory() || !name.matches("(?i).+\\.(dll|so|dylib|jnilib)")) continue;
+                    Path destination = target.resolve(name);
+                    byte[] bytes;
+                    try (InputStream in = jar.getInputStream(entry)) { bytes = in.readAllBytes(); }
+                    Path previous = extracted.putIfAbsent(name, dependency.path());
+                    if ((previous != null) && !Arrays.equals(bytes, Files.readAllBytes(destination)))
+                        throw new KanvasException("Native library " + name + " is in both " + previous.getFileName() + " and " + dependency.path().getFileName());
+                    Files.createDirectories(target);
+                    Files.write(destination, bytes);
+                }
+            } catch (IOException e) { throw new KanvasException("Failed to extract native libraries from " + dependency.path() + ": " + e.getMessage(), e); }
+        }
     }
 
     public static List<Path> kanvasRuntime() {

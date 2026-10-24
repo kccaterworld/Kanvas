@@ -81,6 +81,8 @@ public class ProjectLoader {
         String iconName = blankToNull(packaging.string("icon", null));
         Path icon = iconName == null ? null : resolve(scriptDir, iconName, "packaging.icon", errors);
         List<String> nativeTargets = packaging.strings("nativeTargets");
+        for (String nativeTarget : nativeTargets)
+            if (Platform.parse(nativeTarget) == null) errors.add("packaging.nativeTargets has unknown platform '" + nativeTarget + "'. Use " + String.join(", ", Platform.SYSTEMS) + ", optionally followed by -" + String.join(", -", Platform.ARCHITECTURES));
         PACKAGE_FORMAT format = packageFormat(packaging.string("format", null), errors);
         packaging.ignore("version"); // duplicates the top-level version; still present in older kanvas.toml files
 
@@ -139,7 +141,7 @@ public class ProjectLoader {
         if (value instanceof String || value instanceof List<?>) {
             for (String entry : root.strings("dependencies")) {
                 String[] parts = entry.split(":", -1);
-                if (parts.length == 3) maven(parts[0], parts[1], parts[2], Dependency.Scope.COMPILE, "dependencies entry \"" + entry + "\"", result, errors);
+                if (parts.length == 3) maven(parts[0], parts[1], parts[2], Dependency.Scope.COMPILE, Map.of(), "dependencies entry \"" + entry + "\"", result, errors);
                 else result.add(new Dependency.Local(entry, resolve(scriptDir.resolve("lib"), entry, "dependencies", errors)));
             }
             return result;
@@ -153,10 +155,12 @@ public class ProjectLoader {
             Object spec = entry.getValue();
             String version = spec instanceof String s ? s : null, path = null;
             Dependency.Scope scope = Dependency.Scope.COMPILE;
+            Map<String, String> natives = Map.of();
             if (spec instanceof Map<?, ?> fields) {
                 for (Map.Entry<?, ?> field : fields.entrySet()) {
                     String name = field.getKey().toString();
-                    if (!(field.getValue() instanceof String s)) errors.add(where + "." + name + " must be a string");
+                    if (name.equals("natives")) natives = natives(field.getValue(), where + ".natives", errors);
+                    else if (!(field.getValue() instanceof String s)) errors.add(where + "." + name + " must be a string");
                     else if (name.equals("version")) version = s;
                     else if (name.equals("path")) path = s;
                     else if (name.equals("scope")) {
@@ -166,13 +170,14 @@ public class ProjectLoader {
                             scope = Dependency.Scope.COMPILE;
                         }
                     }
-                    else errors.add("Unknown key '" + where + "." + name + "'. Use version, path or scope");
+                    else errors.add("Unknown key '" + where + "." + name + "'. Use version, path, scope or natives");
                 }
             } else if (version == null) {
                 errors.add(where + " must be a version string or a table, found " + spec);
                 continue;
             }
             boolean coordinate = key.contains(":");
+            if (!natives.isEmpty() && path != null) errors.add(where + ".natives only works for Maven dependencies");
             if (path != null && version != null) errors.add(where + " has both version and path; use one");
             else if (path != null) {
                 if (path.isBlank()) errors.add(where + ".path must not be empty");
@@ -182,10 +187,27 @@ public class ProjectLoader {
             else {
                 String[] parts = key.split(":", -1);
                 if (parts.length != 2) errors.add(where + " must be written \"group:artifact\"");
-                else maven(parts[0], parts[1], version, scope, where, result, errors);
+                else maven(parts[0], parts[1], version, scope, natives, where, result, errors);
             }
         }
         return result;
+    }
+
+    private static Map<String, String> natives(Object value, String where, List<String> errors) {
+        if (!(value instanceof Map<?, ?> table)) {
+            errors.add(where + " must be a table of platform = \"classifier\"");
+            return Map.of();
+        }
+        Map<String, String> natives = new TreeMap<>();
+        for (Map.Entry<?, ?> entry : table.entrySet()) {
+            String platform = entry.getKey().toString();
+            if (Platform.parse(platform) == null)
+                errors.add(where + " has unknown platform '" + platform + "'. Use " + String.join(", ", Platform.SYSTEMS) + ", optionally followed by -" + String.join(", -", Platform.ARCHITECTURES));
+            else if (!(entry.getValue() instanceof String classifier) || !Dependency.Maven.CLASSIFIER.matcher(classifier).matches())
+                errors.add(where + "." + platform + " must be a classifier such as \"natives-" + platform + "\"");
+            else natives.put(platform, classifier);
+        }
+        return natives;
     }
 
     private static List<URI> repositories(List<String> urls, List<String> errors) {
@@ -206,10 +228,10 @@ public class ProjectLoader {
         return result;
     }
 
-    private static void maven(String group, String artifact, String version, Dependency.Scope scope, String where, List<Dependency> result, List<String> errors) {
+    private static void maven(String group, String artifact, String version, Dependency.Scope scope, Map<String, String> natives, String where, List<Dependency> result, List<String> errors) {
         String problem = Dependency.Maven.problem(group, artifact, version);
         if (problem != null) errors.add(where + ": " + problem);
-        else result.add(new Dependency.Maven(group, artifact, version, scope));
+        else result.add(new Dependency.Maven(group, artifact, version, scope, natives));
     }
 
     private static PACKAGE_FORMAT packageFormat(String value, List<String> errors) {

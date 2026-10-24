@@ -15,10 +15,16 @@ public record MavenRepository(Path root) {
 
     public Path jar(Dependency.Maven dependency) { return artifact(dependency, "jar"); }
 
-    public Path artifact(Dependency.Maven dependency, String extension) { return root.resolve(relativePath(dependency, extension)); }
+    public Path artifact(Dependency.Maven dependency, String extension) { return root.resolve(relativePath(dependency, null, extension)); }
 
-    public static String relativePath(Dependency.Maven dependency, String extension) {
+    public Path artifact(Dependency.Maven dependency, String classifier, String extension) { return root.resolve(relativePath(dependency, classifier, extension)); }
+
+    public static String relativePath(Dependency.Maven dependency, String classifier, String extension) {
         return dependency.group().replace('.', '/') + "/" + dependency.artifact() + "/" + dependency.version() + "/"
-            + dependency.artifact() + "-" + dependency.version() + "." + extension;
+            + dependency.artifact() + "-" + dependency.version() + (classifier == null ? "" : "-" + classifier) + "." + extension;
+    }
+
+    public static String metadataPath(String group, String artifact) {
+        return group.replace('.', '/') + "/" + artifact + "/maven-metadata.xml";
     }
 }

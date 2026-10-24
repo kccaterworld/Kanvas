@@ -42,6 +42,8 @@ public record Project(String name, String version, String author, String descrip
 
     public Path cacheDir() { return scriptDir.resolve(CACHE_DIR).normalize(); }
 
+    public Path lockFile() { return scriptDir.resolve("kanvas.lock"); }
+
     public String launchClass() {
         String mainClass = runtimeSettings.mainClass();
         if (mainClass == null || mainClass.contains(".")) return mainClass;
@@ -59,6 +61,7 @@ public record Project(String name, String version, String author, String descrip
             Objects.requireNonNull(resources, "resources");
             Objects.requireNonNull(output, "output");
         }
+        public Path natives() { return root.resolve("natives"); }
         public static BuildLayout standard(Path projectDir) { return under(projectDir.resolve(DEFAULT_ROOT)); }
         public static BuildLayout under(Path root) {
             return new BuildLayout(root,

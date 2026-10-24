@@ -26,14 +26,7 @@ public final class ProjectWriter {
         line(toml, "repositories", strings(project.repositories().stream().map(URI::toString).toList()));
 
         toml.append("\n[dependencies]\n");
-        for (Dependency dependency : project.dependencies()) {
-            switch (dependency) {
-                case Dependency.Maven maven -> line(toml, key(maven.key()), maven.scope() == Dependency.Scope.COMPILE ? string(maven.version())
-                    : "{ version = " + string(maven.version()) + ", scope = " + string(maven.scope().label()) + " }");
-                case Dependency.Local local -> line(toml, key(local.name()), "{ path = " + string(relative(dir, local.path()))
-                    + (local.scope() == Dependency.Scope.COMPILE ? "" : ", scope = " + string(local.scope().label())) + " }");
-            }
-        }
+        for (Dependency dependency : project.dependencies()) line(toml, dependencyKey(dependency), dependencyValue(dependency, dir));
 
         toml.append("\n[modules]\n");
         line(toml, "srcDirs", paths(dir, project.sourceRoots()));
@@ -56,6 +49,19 @@ public final class ProjectWriter {
         line(toml, "nativeTargets", strings(packaging.nativeTargets()));
         line(toml, "format", string(packaging.format().name().toLowerCase(Locale.ROOT).replace('_', '-')));
         return toml.toString();
+    }
+
+    public static String dependencyKey(Dependency dependency) { return key(dependency.key()); }
+
+    public static String dependencyValue(Dependency dependency, Path dir) {
+        return switch (dependency) {
+            case Dependency.Maven maven -> maven.scope() == Dependency.Scope.COMPILE && maven.natives().isEmpty() ? string(maven.version())
+                : "{ version = " + string(maven.version())
+                    + (maven.scope() == Dependency.Scope.COMPILE ? "" : ", scope = " + string(maven.scope().label()))
+                    + (maven.natives().isEmpty() ? "" : ", natives = " + inlineTable(maven.natives())) + " }";
+            case Dependency.Local local -> "{ path = " + string(relative(dir, local.path()))
+                + (local.scope() == Dependency.Scope.COMPILE ? "" : ", scope = " + string(local.scope().label())) + " }";
+        };
     }
 
     private static void line(StringBuilder toml, String key, String value) { toml.append(key).append(" = ").append(value).append('\n'); }

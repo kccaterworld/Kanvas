@@ -45,6 +45,7 @@ public class KanvasRunner {
         command.add("java");
         command.addAll(runtime.jvmArgs());
         command.add("-Dkanvas.sketchPath=" + project.scriptDir());
+        if (Files.isDirectory(layout.natives())) command.add("-Djava.library.path=" + layout.natives());
         command.add("-cp");
         command.add(String.join(File.pathSeparator, classpath));
         command.add(project.launchClass());

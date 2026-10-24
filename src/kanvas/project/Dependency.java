@@ -1,8 +1,7 @@
 package kanvas.project;
 
 import java.nio.file.Path;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public sealed interface Dependency {
@@ -44,23 +43,26 @@ public sealed interface Dependency {
         public String key() { return name; }
     }
 
-    record Maven(String group, String artifact, String version, Scope scope) implements Dependency {
+    record Maven(String group, String artifact, String version, Scope scope, Map<String, String> natives) implements Dependency {
         private static final Pattern GROUP = Pattern.compile("[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*");
         private static final Pattern ARTIFACT = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9_.-]*");
         private static final Pattern VERSION = Pattern.compile("[A-Za-z0-9_+-][A-Za-z0-9_.+-]*");
+        public static final Pattern CLASSIFIER = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9_.-]*");
 
         public Maven {
             Objects.requireNonNull(group, "group");
             Objects.requireNonNull(artifact, "artifact");
             Objects.requireNonNull(version, "version");
             Objects.requireNonNull(scope, "scope");
+            natives = Collections.unmodifiableMap(new TreeMap<>(natives));
         }
+        public Maven(String group, String artifact, String version, Scope scope) { this(group, artifact, version, scope, Map.of()); }
         public Maven(String group, String artifact, String version) { this(group, artifact, version, Scope.COMPILE); }
 
         public String key() { return group + ":" + artifact; }
         public String coordinate() { return key() + ":" + version; }
-        public Maven withVersion(String version) { return new Maven(group, artifact, version, scope); }
-        public Maven withScope(Scope scope) { return new Maven(group, artifact, version, scope); }
+        public Maven withVersion(String version) { return new Maven(group, artifact, version, scope, natives); }
+        public Maven withScope(Scope scope) { return new Maven(group, artifact, version, scope, natives); }
 
         public static String problem(String group, String artifact, String version) {
             if (group == null || !GROUP.matcher(group).matches()) return "'" + group + "' is not a valid Maven group";
