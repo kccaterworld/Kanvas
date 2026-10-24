@@ -28,16 +28,18 @@ public class KanvasRunner {
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e); }
     }
 
-    // build then assemble: java <jvmArgs> -Dkanvas.sketchPath=<project dir> -cp <classpath> <main class> <programArgs>
+    // Launches what's already built (see BuildManager.buildIfNeeded):
+    // java <jvmArgs> -Dkanvas.sketchPath=<project dir> -cp <classes;resources;classpath> <main class> <programArgs>
     private static ProcessBuilder buildCommand(Project project) throws KanvasException {
-        BuildManager buildManager = new BuildManager(project);
-        buildManager.build();
         Project.RuntimeSettings runtime = project.runtimeSettings();
         if (runtime.mainClass() == null) throw new KanvasException("No mainClass set in kanvas.toml. Please specify the main class to run.");
+        Project.BuildLayout layout = project.buildLayout();
+        if (!Files.isDirectory(layout.classes())) throw new KanvasException("The project hasn't been built yet. Run `kanvas build` first.");
 
         List<String> classpath = new ArrayList<>();
-        classpath.add(project.buildLayout().classes().toString());
-        for (Path entry : buildManager.compileClasspath()) classpath.add(entry.toString());
+        classpath.add(layout.classes().toString());
+        classpath.add(layout.resources().toString());
+        for (Path entry : new BuildManager(project).compileClasspath()) classpath.add(entry.toString());
 
         List<String> command = new ArrayList<>();
         command.add("java");

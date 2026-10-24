@@ -82,7 +82,9 @@ public class Main {
             } break;
             case "run": {
                 parseArguments(args, 0, Set.of(), Set.of());
-                KanvasRunner.run(loadProject());
+                Project project = loadProject();
+                new BuildManager(project).buildIfNeeded();
+                KanvasRunner.run(project);
             } break;
             case "install": {
                 KanvasInstaller.install(parseArguments(args, 0, Set.of("dir"), Set.of()).flags().get("dir"));

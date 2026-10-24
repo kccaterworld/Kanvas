@@ -9,6 +9,9 @@ import java.util.stream.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.jar.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class BuildManager {
     private static final int RUNTIME_RELEASE = 21;
@@ -19,10 +22,23 @@ public class BuildManager {
         this.project = project;
     }
 
-    public void build() throws KanvasException {
+    public boolean buildIfNeeded() throws KanvasException {
+        String fingerprint = fingerprint();
+        if (Files.isDirectory(project.buildLayout().classes()) && fingerprint.equals(storedFingerprint())) return false;
+        build(fingerprint);
+        return true;
+    }
+
+    public void build() throws KanvasException { build(fingerprint()); }
+
+    private void build(String fingerprint) throws KanvasException {
         if (!CompileTool.checkCanRun()) throw new MissingDependencyException("No Java compiler available. Make sure to run Kanvas with a JDK, not a JRE.");
         ProjectLoader.validateProject(project);
         Project.BuildLayout layout = project.buildLayout();
+        Path fingerprintFile = fingerprintFile();
+        try { Files.deleteIfExists(fingerprintFile);
+        } catch (IOException e) { throw new KanvasException("Failed to delete " + fingerprintFile + ": " + e.getMessage(), e); }
+        for (Path dir : List.of(layout.generated(), layout.classes(), layout.resources())) deleteDirectory(dir, "modules.buildDir");
         for (Path dir : List.of(layout.generated(), layout.classes(), layout.resources(), layout.output())) {
             try { Files.createDirectories(dir);
             } catch (IOException e) { throw new KanvasException("Failed to create build directory " + dir + ": " + e.getMessage(), e); }
@@ -49,13 +65,74 @@ public class BuildManager {
         } catch (MissingDependencyException e) { throw new KanvasException("Missing dependency: " + e.getMessage(), e);
         } catch (KanvasCompileException e) { throw new KanvasException("Failed to compile " + e.getMessage(), e);
         } catch (Exception e) { throw new KanvasException("Congrats, you found an unforseen error while compiling", e); }
+
+        copyResources(layout.resources());
+        try {
+            Files.createDirectories(fingerprintFile.getParent());
+            Files.writeString(fingerprintFile, fingerprint);
+        } catch (IOException e) { throw new KanvasException("Failed to write " + fingerprintFile + ": " + e.getMessage(), e); }
+    }
+
+    // assets/textures/player.png turns into build/resources/textures/player.png, loaded as "textures/player.png".
+    private void copyResources(Path target) throws KanvasException {
+        Map<Path, Path> copied = new HashMap<>();
+        for (Path root : project.resourceRoots()) {
+            if (!Files.isDirectory(root)) continue;
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
+                    Path relative = root.relativize(file), destination = target.resolve(relative.toString());
+                    Path previous = copied.putIfAbsent(relative, file);
+                    if (previous != null) throw new KanvasException("Two resource folders both contain " + relative.toString().replace(File.separatorChar, '/') + ": " + previous + " and " + file);
+                    Files.createDirectories(destination.getParent());
+                    Files.copy(file, destination);
+                }
+            } catch (IOException | UncheckedIOException e) { throw new KanvasException("Failed to copy resources from " + root + ": " + e.getMessage(), e); }
+        }
+    }
+
+    private String fingerprint() throws KanvasException {
+        MessageDigest digest;
+        try { digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) { throw new KanvasException("SHA-256 is not available", e); }
+        update(digest, "config", ProjectWriter.write(project).getBytes(StandardCharsets.UTF_8));
+        try {
+            for (Path root : project.sourceRoots()) hashTree(digest, "source", root);
+            for (Path root : project.resourceRoots()) hashTree(digest, "resource", root);
+            for (Path entry : compileClasspath()) hashTree(digest, "classpath", entry);
+        } catch (IOException | UncheckedIOException e) { throw new KanvasException("Failed to read project files: " + e.getMessage(), e); }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static void hashTree(MessageDigest digest, String label, Path root) throws IOException {
+        update(digest, label, root.toString().getBytes(StandardCharsets.UTF_8));
+        if (Files.isRegularFile(root)) { update(digest, "file", Files.readAllBytes(root)); return; }
+        if (!Files.isDirectory(root)) { update(digest, "missing", new byte[0]); return; }
+        try (Stream<Path> files = Files.walk(root)) {
+            for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
+                update(digest, "path", root.relativize(file).toString().replace(File.separatorChar, '/').getBytes(StandardCharsets.UTF_8));
+                update(digest, "file", Files.readAllBytes(file));
+            }
+        }
+    }
+
+    private static void update(MessageDigest digest, String label, byte[] bytes) {
+        digest.update(label.getBytes(StandardCharsets.UTF_8));
+        digest.update(java.nio.ByteBuffer.allocate(Long.BYTES).putLong(bytes.length).array());
+        digest.update(bytes);
+    }
+
+    private Path fingerprintFile() { return project.cacheDir().resolve("build.hash"); }
+
+    private String storedFingerprint() {
+        try { return Files.readString(fingerprintFile()).trim();
+        } catch (IOException e) { return null; }
     }
 
     public Path packageProject() throws KanvasException {
         Project.PACKAGE_FORMAT format = project.packagingSettings().format();
         if (format != Project.PACKAGE_FORMAT.THIN)
             throw new KanvasException("packaging.format = \"" + format.name().toLowerCase(Locale.ROOT).replace('_', '-') + "\" is not supported yet. Only \"thin\" JARs can be packaged for now.");
-        build();
+        buildIfNeeded();
 
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
@@ -71,7 +148,7 @@ public class BuildManager {
         return jar;
     }
 
-    /** Deletes the build directory and the cache. */
+    // Deletes the build directory and the cache.
     public void clean() throws KanvasException {
         deleteDirectory(project.buildLayout().root(), "modules.buildDir");
         cleanCache();
@@ -81,7 +158,6 @@ public class BuildManager {
         deleteDirectory(project.cacheDir(), null);
     }
 
-    // buildDir comes from kanvas.toml, so refuse anything that would take project files with it.
     private void deleteDirectory(Path dir, String setting) throws KanvasException {
         Path projectDir = project.scriptDir().toAbsolutePath().normalize();
         Path target = dir.toAbsolutePath().normalize();
