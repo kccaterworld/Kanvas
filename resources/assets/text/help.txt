@@ -2,12 +2,15 @@ Usage:
     kanvas
     kanvas create <name> [--type <template>] [--force]
     kanvas clean
+    kanvas add <group:artifact[:version]> [--scope <scope>]
+    kanvas add <name> --path <file> [--scope <scope>]
+    kanvas remove <group:artifact | name>
     kanvas dependencies
     kanvas list-types
     kanvas config [project] [overrides]
-    kanvas build
-    kanvas package [--format <format>]
-    kanvas run
+    kanvas build [--locked]
+    kanvas package [--format <format>] [--locked]
+    kanvas run [--locked]
     kanvas install [--dir <path>]
     kanvas help
     kanvas --theme <theme>
@@ -15,6 +18,8 @@ Usage:
 Commands:
     create          Create a new project in the current directory
     clean           Delete the build directory and the Kanvas cache
+    add             Add or update a dependency in kanvas.toml (latest release if no version is given)
+    remove          Remove a dependency from kanvas.toml
     dependencies    Show the dependency tree and why each version was chosen
     list-types      Show available project templates
     config          Print the effective kanvas.toml after CLI overrides
@@ -27,6 +32,13 @@ Commands:
 Create options:
     --type          Project template: kanvas-sketch, java-app, java-lib, mixed-project, empty
     --force         Overwrite an existing project's template files without asking
+
+Add options:
+    --scope         compile (default), runtime or provided
+    --path          Add a local JAR or class directory instead of a Maven artifact
+
+Build, run and package options:
+    --locked        Fail instead of updating kanvas.lock when it's missing or out of date (for CI)
 
 Package options:
     --format        thin (default; project only), jar-and-deps (adds lib/), fat (one runnable JAR)
