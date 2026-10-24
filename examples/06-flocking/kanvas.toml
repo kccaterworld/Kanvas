@@ -1,0 +1,17 @@
+configVersion = 1
+name = "flocking"
+version = "1.0.0"
+author = "Kanvas"
+description = "A Java flocking simulation drawn by Kanvas sketches in nested packages"
+mainClass = "Main"
+
+classpath = []
+dependencies = []
+
+[modules]
+srcDirs = ["src"]
+buildDir = "build"
+
+[compiler]
+target = 21
+encoding = "UTF-8"

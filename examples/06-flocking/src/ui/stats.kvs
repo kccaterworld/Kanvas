@@ -1,0 +1,36 @@
+// No package line: the ui/ folder makes this ui.Stats.
+// Main.kvs is in another package, so anything it touches here is public.
+
+import sim.Flock;
+
+public Flock flock;
+float[] history = new float[150];
+
+void setup() {
+    size(300, 160);
+    setTitle("Flock Stats");
+}
+
+void draw() {
+    background(240);
+    if (flock == null) return;
+
+    System.arraycopy(history, 1, history, 0, history.length - 1);
+    history[history.length - 1] = (float) flock.averageSpeed();
+    stroke(40, 120, 200);
+    strokeWeight(2);
+    for (int i = 1; i < history.length; i++)
+        line(graphX(i - 1), graphY(history[i - 1]), graphX(i), graphY(history[i]));
+
+    noStroke();
+    fill(40, 120, 200);
+    rect(10, 10, Math.min(flock.count(), width - 20), 12);
+}
+
+float graphX(int i) {
+    return (float) map(i, 0, history.length - 1, 10, width - 10);
+}
+
+float graphY(float speed) {
+    return (float) map(speed, 0, 3, height - 10, 40);
+}

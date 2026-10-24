@@ -1,0 +1,50 @@
+/**
+ * Flocking
+ * Left click to add birds, right click to remove the one under the mouse.
+ * - Java classes in sim/ do the simulation
+ * - ui/stats.kvs becomes ui.Stats, a second window
+ * - this file has no package, so it becomes kanvas.generated.Main
+ */
+
+import sim.Bird;
+import sim.Flock;
+import ui.Stats;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+Flock flock;
+Queue<float[]> clicks = new ConcurrentLinkedQueue<>();
+
+void setup() {
+    size(800, 600);
+    smooth();
+    setTitle("Flocking");
+    flock = new Flock(80, width, height);
+
+    Stats stats = new Stats();
+    stats.flock = flock;
+    stats.launchWindow();
+}
+
+void draw() {
+    background(15, 20, 35);
+    for (float[] click; (click = clicks.poll()) != null; ) {
+        if (click[2] == RIGHT) flock.removeNear(click[0], click[1], 15);
+        else for (int i = 0; i < 5; i++) flock.add(click[0], click[1]);
+    }
+    flock.step();
+
+    fill(120, 200, 255);
+    noStroke();
+    for (Bird bird : flock.birds()) {
+        pushMatrix();
+        translate((float) bird.x, (float) bird.y);
+        rotate((float) bird.heading());
+        triangle(8, 0, -5, 4, -5, -4);
+        popMatrix();
+    }
+}
+
+void mousePressed() {
+    clicks.add(new float[] { mouseX, mouseY, mouseButton });
+}
