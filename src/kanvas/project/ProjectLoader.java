@@ -51,7 +51,7 @@ public class ProjectLoader {
         String description = root.string("description", "");
         String mainClass = blankToNull(root.string("mainClass", null));
         List<Path> classpath = resolveAll(scriptDir, root.strings("classpath"), "classpath", errors);
-        List<String> dependencies = root.strings("dependencies");
+        List<Dependency> dependencies = dependencies(root, scriptDir, errors);
         if (root.has("profiles")) errors.add("profiles are not supported yet");
 
         Table modules = root.table("modules");
@@ -101,8 +101,15 @@ public class ProjectLoader {
             if (!Files.isDirectory(sourceRoot)) errors.add("Source directory not found: " + sourceRoot);
         for (Path entry : project.runtimeSettings().classpath())
             if (!Files.exists(entry)) errors.add("Classpath entry not found: " + entry);
-        for (Path jar : project.dependencyClasspath())
-            if (!Files.isRegularFile(jar)) errors.add("Dependency '" + jar.getFileName() + "' not found in " + jar.getParent());
+        for (Dependency dependency : project.dependencies()) {
+            if (Files.exists(project.locate(dependency))) continue;
+            switch (dependency) {
+                case Dependency.Local local -> errors.add("Dependency '" + local.name() + "' not found at " + local.path());
+                case Dependency.Maven maven -> errors.add("Dependency " + maven.coordinate() + " not found. Looked in:"
+                    + project.candidates(maven).stream().map(path -> "\n      " + path).collect(java.util.stream.Collectors.joining())
+                    + "\n    Kanvas can't download from Maven yet. Fetch it with `mvn dependency:get -Dartifact=" + maven.coordinate() + "`, or put the JAR at the first path.");
+            }
+        }
         Path icon = project.packagingSettings().icon();
         if (icon != null && !Files.isRegularFile(icon)) errors.add("Icon not found: " + icon);
         if (!errors.isEmpty()) throw problems("Project '" + project.name() + "'", errors);
@@ -131,6 +138,60 @@ public class ProjectLoader {
             } catch (IOException | UncheckedIOException e) { /* unreadable source root: the build reports it */ }
         }
         return List.of();
+    }
+
+    private static List<Dependency> dependencies(Table root, Path scriptDir, List<String> errors) {
+        List<Dependency> result = new ArrayList<>();
+        Object value = root.value("dependencies");
+        if (value == null) return result;
+        if (value instanceof String || value instanceof List<?>) {
+            for (String entry : root.strings("dependencies")) {
+                String[] parts = entry.split(":", -1);
+                if (parts.length == 3) maven(parts[0], parts[1], parts[2], "dependencies entry \"" + entry + "\"", result, errors);
+                else result.add(new Dependency.Local(entry, resolve(scriptDir.resolve("lib"), entry, "dependencies", errors)));
+            }
+            return result;
+        }
+        if (!(value instanceof Map<?, ?> table)) {
+            errors.add("dependencies must be a table, found " + value);
+            return result;
+        }
+        for (Map.Entry<?, ?> entry : table.entrySet()) {
+            String key = entry.getKey().toString(), where = "dependencies.\"" + key + "\"";
+            Object spec = entry.getValue();
+            String version = spec instanceof String s ? s : null, path = null;
+            if (spec instanceof Map<?, ?> fields) {
+                for (Map.Entry<?, ?> field : fields.entrySet()) {
+                    String name = field.getKey().toString();
+                    if (!(field.getValue() instanceof String s)) errors.add(where + "." + name + " must be a string");
+                    else if (name.equals("version")) version = s;
+                    else if (name.equals("path")) path = s;
+                    else errors.add("Unknown key '" + where + "." + name + "'. Use version or path");
+                }
+            } else if (version == null) {
+                errors.add(where + " must be a version string or a table, found " + spec);
+                continue;
+            }
+            boolean coordinate = key.contains(":");
+            if (path != null && version != null) errors.add(where + " has both version and path; use one");
+            else if (path != null) {
+                if (path.isBlank()) errors.add(where + ".path must not be empty");
+                else result.add(new Dependency.Local(key, resolve(scriptDir, path, where + ".path", errors)));
+            } else if (!coordinate) errors.add(where + " needs { path = \"...\" }, or a \"group:artifact\" key with a version");
+            else if (version == null || version.isBlank()) errors.add(where + " needs a version");
+            else {
+                String[] parts = key.split(":", -1);
+                if (parts.length != 2) errors.add(where + " must be written \"group:artifact\"");
+                else maven(parts[0], parts[1], version, where, result, errors);
+            }
+        }
+        return result;
+    }
+
+    private static void maven(String group, String artifact, String version, String where, List<Dependency> result, List<String> errors) {
+        String problem = Dependency.Maven.problem(group, artifact, version);
+        if (problem != null) errors.add(where + ": " + problem);
+        else result.add(new Dependency.Maven(group, artifact, version));
     }
 
     private static PACKAGE_FORMAT packageFormat(String value, List<String> errors) {
@@ -190,6 +251,8 @@ public class ProjectLoader {
         }
 
         public void ignore(String key) { known.add(key); }
+
+        public Object value(String key) { return take(key); }
 
         public String string(String key, String fallback) {
             Object value = take(key);
