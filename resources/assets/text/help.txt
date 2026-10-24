@@ -36,7 +36,7 @@ Install options:
 Config override options:
     --name, --version, --author, --description, --main-class
     --target, --encoding, --src-dirs, --resource-dirs, --build-dir
-    --classpath, --dependencies, --jar-name, --icon, --native-targets, --format
+    --classpath, --dependencies, --repositories, --jar-name, --icon, --native-targets, --format
 
 Themes:
     neon (default), mono, retro

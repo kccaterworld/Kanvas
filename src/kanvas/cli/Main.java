@@ -183,7 +183,7 @@ public class Main {
         Map.entry("name", "name"), Map.entry("version", "version"),
         Map.entry("author", "author"), Map.entry("description", "description"),
         Map.entry("main-class", "mainClass"),
-        Map.entry("classpath", "classpath"), Map.entry("dependencies", "dependencies"),
+        Map.entry("classpath", "classpath"), Map.entry("dependencies", "dependencies"), Map.entry("repositories", "repositories"),
         Map.entry("target", "compiler.target"), Map.entry("encoding", "compiler.encoding"),
         Map.entry("src-dirs", "modules.srcDirs"), Map.entry("resource-dirs", "modules.resourceDirs"), Map.entry("build-dir", "modules.buildDir"),
         Map.entry("jar-name", "packaging.jarName"), Map.entry("icon", "packaging.icon"),
