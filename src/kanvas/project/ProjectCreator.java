@@ -13,11 +13,11 @@ public class ProjectCreator {
         "kanvas-sketch", "java-app", "java-lib", "mixed-project", "empty"
     );
     private static final Map<String, List<String>> TEMPLATE_FILES = Map.of(
-        "empty", Arrays.asList("kanvas.toml"),
-        "kanvas-sketch", Arrays.asList("kanvas.toml", "src/main.kvs"),
-        "java-app", Arrays.asList("kanvas.toml", "src/App.java"),
-        "java-lib", Arrays.asList("kanvas.toml", "src/Library.java"),
-        "mixed-project", Arrays.asList("kanvas.toml", "src/App.java", "src/main.kvs")
+        "empty", Arrays.asList("kanvas.toml", ".gitignore"),
+        "kanvas-sketch", Arrays.asList("kanvas.toml", "src/main.kvs", ".gitignore"),
+        "java-app", Arrays.asList("kanvas.toml", "src/App.java", ".gitignore"),
+        "java-lib", Arrays.asList("kanvas.toml", "src/Library.java", ".gitignore"),
+        "mixed-project", Arrays.asList("kanvas.toml", "src/App.java", "src/main.kvs", ".gitignore")
     );
 
     public static List<String> getTemplateTypes() {
