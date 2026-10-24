@@ -18,6 +18,7 @@ public class BuildManager {
     private static final int RUNTIME_RELEASE = 21;
 
     private final Project project;
+    private List<Path> dependencyClasspath;
 
     public BuildManager(Project project) {
         this.project = project;
@@ -222,7 +223,8 @@ public class BuildManager {
     public List<Path> compileClasspath() throws KanvasException {
         List<Path> classpath = new ArrayList<>(kanvasRuntime());
         classpath.addAll(project.runtimeSettings().classpath());
-        classpath.addAll(new DependencyResolver(project).classpath());
+        if (dependencyClasspath == null) dependencyClasspath = new DependencyResolver(project).classpath();
+        classpath.addAll(dependencyClasspath);
         return classpath;
     }
 

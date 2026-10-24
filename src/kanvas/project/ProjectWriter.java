@@ -2,6 +2,7 @@ package kanvas.project;
 
 import kanvas.project.Project.*;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -22,6 +23,7 @@ public final class ProjectWriter {
         line(toml, "description", string(project.description()));
         if (runtime.mainClass() != null) line(toml, "mainClass", string(runtime.mainClass()));
         line(toml, "classpath", paths(dir, runtime.classpath()));
+        line(toml, "repositories", strings(project.repositories().stream().map(URI::toString).toList()));
 
         toml.append("\n[dependencies]\n");
         for (Dependency dependency : project.dependencies()) {

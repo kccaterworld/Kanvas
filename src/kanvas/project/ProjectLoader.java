@@ -6,6 +6,8 @@ import kanvas.project.Project.*;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
@@ -52,6 +54,7 @@ public class ProjectLoader {
         String mainClass = blankToNull(root.string("mainClass", null));
         List<Path> classpath = resolveAll(scriptDir, root.strings("classpath"), "classpath", errors);
         List<Dependency> dependencies = dependencies(root, scriptDir, errors);
+        List<URI> repositories = repositories(root.strings("repositories", List.of(Project.MAVEN_CENTRAL.toString())), errors);
         if (root.has("profiles")) errors.add("profiles are not supported yet");
 
         Table modules = root.table("modules");
@@ -88,7 +91,7 @@ public class ProjectLoader {
             entryPoints(mainClass, sourceRoots, encoding == null || !isSupportedCharset(encoding) ? StandardCharsets.UTF_8 : Charset.forName(encoding)),
             sourceRoots, resourceRoots, List.of(scriptDir.resolve("lib")),
             BuildLayout.under(buildDir),
-            dependencies,
+            dependencies, repositories,
             Map.of(),
             new CompilerSettings(target, encoding, flags),
             new RuntimeSettings(mainClass, classpath, jvmArgs, env, programArgs),
@@ -101,22 +104,11 @@ public class ProjectLoader {
             if (!Files.isDirectory(sourceRoot)) errors.add("Source directory not found: " + sourceRoot);
         for (Path entry : project.runtimeSettings().classpath())
             if (!Files.exists(entry)) errors.add("Classpath entry not found: " + entry);
-        for (Dependency dependency : project.dependencies()) {
-            if (Files.exists(project.locate(dependency))) continue;
-            switch (dependency) {
-                case Dependency.Local local -> errors.add("Dependency '" + local.name() + "' not found at " + local.path());
-                case Dependency.Maven maven -> errors.add("Dependency " + maven.coordinate() + " not found. Looked in:"
-                    + project.candidates(maven).stream().map(path -> "\n      " + path).collect(java.util.stream.Collectors.joining())
-                    + "\n    Kanvas can't download from Maven yet. Fetch it with `mvn dependency:get -Dartifact=" + maven.coordinate() + "`, or put the JAR at the first path.");
-            }
-        }
         Path icon = project.packagingSettings().icon();
         if (icon != null && !Files.isRegularFile(icon)) errors.add("Icon not found: " + icon);
         if (!errors.isEmpty()) throw problems("Project '" + project.name() + "'", errors);
     }
 
-    // A Java class lives at <srcDir>/com/example/App.java. A sketch class comes from the .kvs file that compiles to it:
-    // src/main.kvs -> kanvas.generated.Main, src/game/level.kvs -> game.Level. mainClass from dependency JARs have no entry point here.
     private static List<Path> entryPoints(String mainClass, List<Path> sourceRoots, Charset encoding) {
         if (mainClass == null) return List.of();
         for (Path root : sourceRoots) {
@@ -184,6 +176,26 @@ public class ProjectLoader {
                 if (parts.length != 2) errors.add(where + " must be written \"group:artifact\"");
                 else maven(parts[0], parts[1], version, where, result, errors);
             }
+        }
+        return result;
+    }
+
+    private static List<URI> repositories(List<String> urls, List<String> errors) {
+        List<URI> result = new ArrayList<>();
+        for (String url : urls) {
+            URI uri;
+            try { uri = new URI(url.endsWith("/") ? url : url + "/");
+            } catch (URISyntaxException e) {
+                errors.add("repositories entry \"" + url + "\" is not a valid URL");
+                continue;
+            }
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT), host = uri.getHost();
+            boolean loopback = "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "[::1]".equals(host);
+            if (host == null || !(scheme.equals("https") || scheme.equals("http")))
+                errors.add("repositories entry \"" + url + "\" must be an https:// URL");
+            else if (scheme.equals("http") && !loopback)
+                errors.add("repositories entry \"" + url + "\" uses http; use https so downloads can't be tampered with");
+            else result.add(uri);
         }
         return result;
     }

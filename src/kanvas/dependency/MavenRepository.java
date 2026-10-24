@@ -15,10 +15,10 @@ public record MavenRepository(Path root) {
 
     public Path jar(Dependency.Maven dependency) { return artifact(dependency, "jar"); }
 
-    private Path artifact(Dependency.Maven dependency, String extension) {
-        Path dir = root;
-        for (String part : dependency.group().split("\\.")) dir = dir.resolve(part);
-        return dir.resolve(dependency.artifact()).resolve(dependency.version())
-            .resolve(dependency.artifact() + "-" + dependency.version() + "." + extension);
+    public Path artifact(Dependency.Maven dependency, String extension) { return root.resolve(relativePath(dependency, extension)); }
+
+    public static String relativePath(Dependency.Maven dependency, String extension) {
+        return dependency.group().replace('.', '/') + "/" + dependency.artifact() + "/" + dependency.version() + "/"
+            + dependency.artifact() + "-" + dependency.version() + "." + extension;
     }
 }
