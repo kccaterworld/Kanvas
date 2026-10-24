@@ -1,5 +1,7 @@
 package kanvas.project;
 
+import kanvas.preprocess.Preprocessor;
+
 import java.util.*;
 import java.nio.file.Path;
 
@@ -43,6 +45,13 @@ public record Project(String name, String version, String author, String descrip
         return dependencyDeclarations.stream().map(dependency -> lib.resolve(dependency).normalize()).toList();
     }
 
+    public String launchClass() {
+        String mainClass = runtimeSettings.mainClass();
+        if (mainClass == null || mainClass.contains(".")) return mainClass;
+        boolean javaEntry = entryPoints.stream().anyMatch(entry -> entry.getFileName().toString().endsWith(".java"));
+        return javaEntry ? mainClass : Preprocessor.DEFAULT_PACKAGE + "." + mainClass;
+    }
+
     public List<Path> userClasspath() {
         List<Path> classpath = new ArrayList<>(runtimeSettings.classpath());
         classpath.addAll(dependencyClasspath());
@@ -79,7 +88,6 @@ public record Project(String name, String version, String author, String descrip
         public static CompilerSettings defaults() { return new CompilerSettings(DEFAULT_TARGET, DEFAULT_ENCODING, List.of()); }
     }
 
-    // mainClass is null for projects with nothing to run, such as libraries.
     public record RuntimeSettings(String mainClass, List<Path> classpath,
             List<String> jvmArgs, Map<String, String> envVars, List<String> programArgs) {
         public RuntimeSettings {

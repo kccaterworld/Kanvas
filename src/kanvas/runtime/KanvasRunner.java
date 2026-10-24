@@ -2,7 +2,6 @@ package kanvas.runtime;
 
 import kanvas.KanvasException;
 import kanvas.builder.BuildManager;
-import kanvas.preprocess.Preprocessor;
 import kanvas.project.Project;
 
 import java.nio.file.*;
@@ -12,8 +11,7 @@ import java.util.*;
 public class KanvasRunner {
     public static void run(Project project) throws KanvasException {
         int exitCode = -1;
-        try {
-            exitCode = buildCommand(project).inheritIO().start().waitFor();
+        try { exitCode = buildCommand(project).inheritIO().start().waitFor();
         } catch (IOException e) { throw new KanvasException("Failed to start the application process: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -47,18 +45,11 @@ public class KanvasRunner {
         command.add("-Dkanvas.sketchPath=" + project.scriptDir());
         command.add("-cp");
         command.add(String.join(File.pathSeparator, classpath));
-        command.add(launchClass(project));
+        command.add(project.launchClass());
         command.addAll(runtime.programArgs());
 
         ProcessBuilder process = new ProcessBuilder(command);
         process.environment().putAll(runtime.envVars());
         return process;
-    }
-
-    private static String launchClass(Project project) {
-        String mainClass = project.runtimeSettings().mainClass();
-        if (mainClass.contains(".")) return mainClass;
-        boolean javaEntry = project.entryPoints().stream().anyMatch(entry -> entry.getFileName().toString().endsWith(".java"));
-        return javaEntry ? mainClass : Preprocessor.DEFAULT_PACKAGE + "." + mainClass;
     }
 }
