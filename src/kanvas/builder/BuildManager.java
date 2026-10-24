@@ -71,6 +71,42 @@ public class BuildManager {
         return jar;
     }
 
+    /** Deletes the build directory and the cache. */
+    public void clean() throws KanvasException {
+        deleteDirectory(project.buildLayout().root(), "modules.buildDir");
+        cleanCache();
+    }
+
+    public void cleanCache() throws KanvasException {
+        deleteDirectory(project.cacheDir(), null);
+    }
+
+    // buildDir comes from kanvas.toml, so refuse anything that would take project files with it.
+    private void deleteDirectory(Path dir, String setting) throws KanvasException {
+        Path projectDir = project.scriptDir().toAbsolutePath().normalize();
+        Path target = dir.toAbsolutePath().normalize();
+        String refusal = null;
+        if (target.equals(projectDir)) refusal = "it is the project directory";
+        else if (!target.startsWith(projectDir)) refusal = "it is outside the project directory";
+        else for (Path root : protectedRoots())
+            if (root.toAbsolutePath().normalize().startsWith(target)) { refusal = "it contains " + projectDir.relativize(root.toAbsolutePath().normalize()); break; }
+        if (refusal != null)
+            throw new KanvasException("Refusing to delete " + target + " because " + refusal + "." + (setting == null ? "" : " Check " + setting + " in kanvas.toml."));
+
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return;
+        try (Stream<Path> files = Files.walk(target)) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.delete(file);
+        } catch (IOException | UncheckedIOException e) { throw new KanvasException("Failed to delete " + target + ": " + e.getMessage(), e); }
+    }
+
+    private List<Path> protectedRoots() {
+        List<Path> roots = new ArrayList<>(project.sourceRoots());
+        roots.addAll(project.resourceRoots());
+        roots.addAll(project.dependencyRoots());
+        roots.add(project.scriptDir().resolve(ProjectLoader.CONFIG_FILE));
+        return roots;
+    }
+
     public List<Path> compileClasspath() {
         List<Path> classpath = new ArrayList<>(kanvasRuntime());
         classpath.addAll(project.userClasspath());
