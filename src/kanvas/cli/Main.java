@@ -31,9 +31,17 @@ public class Main {
         if (remaining.length > 0) runCommand(remaining);
     }
 
-    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "help");
+    private static final List<String> COMMANDS = List.of("create", "list-types", "templates", "config", "build", "run", "install", "package", "clean", "test", "help");
     private static final Map<String, String> FAILURE_PREFIXES = Map.of(
-        "create", "Create failed: ", "config", "Config failed: ", "build", "Build failed: ", "run", "Run failed: ");
+        "create", "Create failed: ",
+        "config", "Config failed: ",
+        "build", "Build failed: ",
+        "run", "Run failed: ",
+        "install", "Install failed: ",
+        "package", "Package failed: ",
+        "clean", "Clean failed: ",
+        "test", "Test failed: "
+    );
 
     private static void runCommand(String[] args) {
         try { dispatch(args); }
@@ -53,9 +61,11 @@ public class Main {
                 List<Path> existing = ProjectCreator.existingFiles(name, template, ".");
                 if (!force && !existing.isEmpty()) force = confirmOverwrite(name, existing);
                 ProjectCreator.createProject(name, template, ".", force);
-                break;
-            }
-            case "list-types": case "templates": parseArguments(args, 0, Set.of(), Set.of()); printTemplateTypes(); break;
+            } break;
+            case "list-types": case "templates": {
+                parseArguments(args, 0, Set.of(), Set.of());
+                printTemplateTypes();
+            } break;
             case "config": {
                 String project = ".";
                 int overrideStart = 1;
@@ -65,13 +75,32 @@ public class Main {
                 }
                 Map<String, String> overrides = parseOverrides(args, overrideStart);
                 System.out.print(ProjectWriter.write(ProjectLoader.loadProject(ProjectLoader.locateProject(Paths.get(project)), overrides)));
-                break;
+            } break;
+            case "build": {
+                parseArguments(args, 0, Set.of(), Set.of());
+                new BuildManager(loadProject()).build();
+            } break;
+            case "run": {
+                parseArguments(args, 0, Set.of(), Set.of());
+                KanvasRunner.run(loadProject());
+            } break;
+            case "install": {
+                KanvasInstaller.install(parseArguments(args, 0, Set.of("dir"), Set.of()).flags().get("dir"));
+            } break;
+            case "package": {
+                parseArguments(args, 0, Set.of(), Set.of());
+                new BuildManager(loadProject()).packageProject();
+            } break;
+            case "clean": { // Delete `build/` and `.kanvas/cache` directories
+                parseArguments(args, 0, Set.of(), Set.of());
+                new BuildManager(loadProject()).clean();
+            } break;
+            case "help": case "-h": case "--help": {
+                printHelp();
+            } break;
+            default: {
+                throw new KanvasException("Unknown command '" + args[0] + "'" + closest(args[0], COMMANDS).map(command -> ". Did you mean '" + command + "'?").orElse("") + " (see `kanvas help` for the commands)");
             }
-            case "build": parseArguments(args, 0, Set.of(), Set.of()); new BuildManager(loadProject()).build(); break;
-            case "run": parseArguments(args, 0, Set.of(), Set.of()); KanvasRunner.run(loadProject()); break;
-            case "install": KanvasInstaller.install(parseArguments(args, 0, Set.of("dir"), Set.of()).flags().get("dir")); break;
-            case "help": case "-h": case "--help": printHelp(); break;
-            default: throw new KanvasException("Unknown command '" + args[0] + "'" + closest(args[0], COMMANDS).map(command -> ". Did you mean '" + command + "'?").orElse("") + " (see `kanvas help` for the commands)");
         }
     }
 
