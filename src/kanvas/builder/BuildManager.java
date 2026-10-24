@@ -1,5 +1,6 @@
 package kanvas.builder;
 
+import kanvas.dependency.DependencyResolver;
 import kanvas.preprocess.KanvasPreprocessor;
 import kanvas.project.*;
 import kanvas.KanvasException;
@@ -160,7 +161,7 @@ public class BuildManager {
         return jar;
     }
 
-    private List<String> copyLibraries(Path lib) throws IOException {
+    private List<String> copyLibraries(Path lib) throws IOException, KanvasException {
         Files.createDirectories(lib);
         Set<String> names = new HashSet<>();
         List<String> classPath = new ArrayList<>();
@@ -218,9 +219,10 @@ public class BuildManager {
         return roots;
     }
 
-    public List<Path> compileClasspath() {
+    public List<Path> compileClasspath() throws KanvasException {
         List<Path> classpath = new ArrayList<>(kanvasRuntime());
-        classpath.addAll(project.userClasspath());
+        classpath.addAll(project.runtimeSettings().classpath());
+        classpath.addAll(new DependencyResolver(project).classpath());
         return classpath;
     }
 

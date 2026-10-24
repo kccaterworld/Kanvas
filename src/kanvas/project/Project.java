@@ -2,6 +2,7 @@ package kanvas.project;
 
 import kanvas.preprocess.Preprocessor;
 
+import java.net.URI;
 import java.util.*;
 import java.nio.file.Path;
 
@@ -9,7 +10,7 @@ public record Project(String name, String version, String author, String descrip
         List<Path> entryPoints,
         List<Path> sourceRoots, List<Path> resourceRoots, List<Path> dependencyRoots,
         BuildLayout buildLayout,
-        List<Dependency> dependencies,
+        List<Dependency> dependencies, List<URI> repositories,
         Map<String, Profile> profiles,
         CompilerSettings compilerSettings, RuntimeSettings runtimeSettings, PackagingSettings packagingSettings
 ) {
@@ -17,6 +18,7 @@ public record Project(String name, String version, String author, String descrip
     public static final String DEFAULT_ENCODING = "UTF-8";
     public static final String DEFAULT_ROOT = "build";
     public static final String CACHE_DIR = ".kanvas/cache";
+    public static final URI MAVEN_CENTRAL = URI.create("https://repo.maven.apache.org/maven2/");
 
     public Project {
         Objects.requireNonNull(name, "name");
@@ -31,6 +33,7 @@ public record Project(String name, String version, String author, String descrip
         dependencyRoots = List.copyOf(dependencyRoots);
         Objects.requireNonNull(buildLayout, "buildLayout");
         dependencies = List.copyOf(dependencies);
+        repositories = List.copyOf(repositories);
         profiles = Map.copyOf(profiles);
         Objects.requireNonNull(compilerSettings, "compilerSettings");
         Objects.requireNonNull(runtimeSettings, "runtimeSettings");
@@ -39,39 +42,11 @@ public record Project(String name, String version, String author, String descrip
 
     public Path cacheDir() { return scriptDir.resolve(CACHE_DIR).normalize(); }
 
-    public List<Path> mavenRepositories() {
-        String local = System.getProperty("maven.repo.local");
-        Path m2 = local != null && !local.isBlank() ? Path.of(local) : Path.of(System.getProperty("user.home"), ".m2", "repository");
-        return List.of(cacheDir().resolve("maven"), m2.toAbsolutePath().normalize());
-    }
-
-    public List<Path> candidates(Dependency dependency) {
-        return switch (dependency) {
-            case Dependency.Local local -> List.of(local.path());
-            case Dependency.Maven maven -> mavenRepositories().stream().map(maven::repositoryPath).toList();
-        };
-    }
-
-    public Path locate(Dependency dependency) {
-        List<Path> candidates = candidates(dependency);
-        return candidates.stream().filter(java.nio.file.Files::exists).findFirst().orElse(candidates.getFirst());
-    }
-
-    public List<Path> dependencyClasspath() {
-        return dependencies.stream().map(this::locate).toList();
-    }
-
     public String launchClass() {
         String mainClass = runtimeSettings.mainClass();
         if (mainClass == null || mainClass.contains(".")) return mainClass;
         boolean javaEntry = entryPoints.stream().anyMatch(entry -> entry.getFileName().toString().endsWith(".java"));
         return javaEntry ? mainClass : Preprocessor.DEFAULT_PACKAGE + "." + mainClass;
-    }
-
-    public List<Path> userClasspath() {
-        List<Path> classpath = new ArrayList<>(runtimeSettings.classpath());
-        classpath.addAll(dependencyClasspath());
-        return List.copyOf(classpath);
     }
 
     public record BuildLayout(Path root,

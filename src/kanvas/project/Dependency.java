@@ -29,12 +29,6 @@ public sealed interface Dependency {
         public String key() { return group + ":" + artifact; }
         public String coordinate() { return key() + ":" + version; }
 
-        public Path repositoryPath(Path repository) {
-            Path dir = repository;
-            for (String part : group.split("\\.")) dir = dir.resolve(part);
-            return dir.resolve(artifact).resolve(version).resolve(artifact + "-" + version + ".jar");
-        }
-
         public static String problem(String group, String artifact, String version) {
             if (!GROUP.matcher(group).matches()) return "'" + group + "' is not a valid Maven group";
             if (!ARTIFACT.matcher(artifact).matches()) return "'" + artifact + "' is not a valid Maven artifact";
