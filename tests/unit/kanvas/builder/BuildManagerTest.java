@@ -219,6 +219,36 @@ class BuildManagerTest {
     }
 
     @Test
+    void scopesDecideWhichClasspathAndJarADependencyIsIn() throws Exception {
+        Path app = tmp.resolve("app");
+        Path cache = app.resolve(".kanvas/cache/maven/com/example");
+        Path compile = greeterJar(cache.resolve("greeter/1/greeter-1.jar"), Map.of());
+        Path runtime = writeJar(cache.resolve("logger/1/logger-1.jar"), Map.of("logger.txt", "log".getBytes(StandardCharsets.UTF_8)));
+        Path provided = writeJar(cache.resolve("api/1/api-1.jar"), Map.of("api.txt", "api".getBytes(StandardCharsets.UTF_8)));
+        Path config = javaApp(app, 21, """
+            [dependencies]
+            "com.example:greeter" = "1"
+            "com.example:logger" = { version = "1", scope = "runtime" }
+            "com.example:api" = { version = "1", scope = "provided" }
+            [packaging]
+            format = "fat"
+            """, GREETING_APP);
+        BuildManager manager = new BuildManager(ProjectLoader.loadProject(config));
+
+        List<Path> compileClasspath = manager.compileClasspath(), runtimeClasspath = manager.runtimeClasspath();
+        assertTrue(compileClasspath.contains(compile) && compileClasspath.contains(provided) && !compileClasspath.contains(runtime), compileClasspath.toString());
+        assertTrue(runtimeClasspath.contains(compile) && runtimeClasspath.contains(runtime) && !runtimeClasspath.contains(provided), runtimeClasspath.toString());
+
+        Path jar = manager.packageProject();
+        try (JarFile file = new JarFile(jar.toFile())) {
+            assertNotNull(file.getEntry("greet/Greeter.class"));
+            assertNotNull(file.getEntry("logger.txt"), "runtime dependencies are packaged");
+            assertNull(file.getEntry("api.txt"), "provided dependencies are not");
+        }
+        assertEquals("hi KMath", runJar(jar));
+    }
+
+    @Test
     void buildsAgainstALocalClassDirectory() throws Exception {
         Path classes = Files.createDirectories(tmp.resolve("shared/classes"));
         Path source = writeFile(tmp.resolve("shared/src/greet/Greeter.java"), "package greet; public class Greeter { public static String greet() { return \"hi\"; } }");

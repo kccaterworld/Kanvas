@@ -104,6 +104,27 @@ class ProjectLoaderTest {
     }
 
     @Test
+    void readsAndWritesScopes() throws Exception {
+        Path config = writeProject(tmp, MINIMAL + """
+            [dependencies]
+            "org.slf4j:slf4j-simple" = { version = "2.0.9", scope = "runtime" }
+            api = { path = "lib/api.jar", scope = "provided" }
+            "com.google.code.gson:gson" = { version = "2.10.1", scope = "compile" }
+            """);
+        Project project = ProjectLoader.loadProject(config);
+        Path dir = tmp.toAbsolutePath().normalize();
+        assertEquals(List.of(
+            new Dependency.Maven("org.slf4j", "slf4j-simple", "2.0.9", Dependency.Scope.RUNTIME),
+            new Dependency.Local("api", dir.resolve("lib/api.jar"), Dependency.Scope.PROVIDED),
+            new Dependency.Maven("com.google.code.gson", "gson", "2.10.1")), project.dependencies());
+
+        String written = ProjectWriter.write(project);
+        assertTrue(written.contains("\"org.slf4j:slf4j-simple\" = { version = \"2.0.9\", scope = \"runtime\" }")
+            && written.contains("api = { path = \"lib/api.jar\", scope = \"provided\" }")
+            && written.contains("\"com.google.code.gson:gson\" = \"2.10.1\"\n"), written);
+    }
+
+    @Test
     void theLegacyArrayAndOverrideAcceptCoordinatesAndLibFiles() throws Exception {
         Path config = writeProject(tmp, "dependencies = [\"org.joml:joml:1.10.5\", \"gson.jar\"]\n" + MINIMAL);
         Path dir = tmp.toAbsolutePath().normalize();
@@ -146,7 +167,7 @@ class ProjectLoaderTest {
                 "'../evil' is not a valid Maven group",
                 "version ranges like '[1.0,2.0)' are not supported",
                 "dependencies.\"g:noversion\" needs a version",
-                "Unknown key 'dependencies.\"local\".scope'"))
+                "dependencies.\"local\".scope must be \"compile\", \"runtime\" or \"provided\", found \"test\""))
             assertTrue(message.contains(expected), expected + "\n" + message);
     }
 
